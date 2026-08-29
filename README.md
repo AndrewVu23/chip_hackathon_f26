@@ -137,7 +137,12 @@ measures.
 
 ## Phase status
 
-- **Phase 0 (kill test): DONE — see results/phase0/ and NOTES.md.**
+- **Phase 0 (kill test): DONE — stopped at the brief's decision gate.**
+  Baseline M1 came out high (0.97 host-centric / 0.76 host-cacheline), not
+  <0.3; the damage is real but lives in M2 (host-centric: 9.7% of ideal BW)
+  and in the sub-row-group block-slice regime (host-cacheline: paged 1173
+  vs contiguous 2719 GB/s — 2.3× from placement alone). Full table +
+  verdict: NOTES.md 2026-08-28. Awaiting owner call on framing.
 - Phase 1: longctx implemented; prefix/spec workloads + CoW/fork — next.
 - Phase 2: PimAware allocator + sweeps + headline figure — pending.
 - Phase 3: Ramulator 2 cross-validation (binary already builds) — pending.

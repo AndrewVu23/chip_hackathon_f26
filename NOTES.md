@@ -93,6 +93,53 @@ line in README.md § Limitations.
   cols−1 hits — the theoretical ceiling for this geometry, so ≥0.95 is the
   right bar for 1 KB rows / 32 B bursts).
 
+## 2026-08-28 — PHASE 0 KILL-TEST RESULT (decision point — owner input needed)
+
+All numbers: steady workload, 2000 requests, seed 0, hbm3-pim, block_tokens
+16, max_batch 64, window-64 coalescing. Ideal all-bank BW = 3810 GB/s.
+Commands in `Makefile:kill-test`; raw CSVs in `results/phase0/`.
+
+| allocator / addrmap            | M1 mean | M2 mean | M3 GB/s | % ideal |
+|--------------------------------|--------:|--------:|--------:|--------:|
+| paged / host-centric (brief's baseline) | 0.970 | 0.124 | 368 | 9.7% |
+| paged / host-cacheline (realistic host) | 0.759 | 0.990 | 1173 | 31% |
+| contig / host-cacheline                 | 0.958 | 0.990 | 2719 | 71% |
+| paged / pim-friendly                    | 0.969 | 1.000 | 2938 | 77% |
+| contig / pim-friendly (upper anchor)    | 0.969 | 1.000 | 2938 | 77% |
+
+Block-size probes (paged / host-cacheline, 500 req): bt=4 → M1 0.57,
+M3 511 GB/s (13%); bt=128 (derived PIM-natural size) → M1 0.96,
+M3 2805 GB/s (74%).
+
+**Verdict per the brief's stop rule (M1 > 0.7 ⇒ stop and tell): STOPPED.**
+Baseline M1 is 0.97 on the brief's host-centric map and 0.76 on the
+realistic map — neither is "under 0.3". Reported as-is, no rationalizing.
+What the runs actually show:
+
+1. The brief's host-centric map loses its 10× not through row misses but
+   through **M2 = 0.124** (whole-row-per-bank sweeps serialize banks):
+   9.7% of ideal BW with a *healthy* M1. The M1-only kill criterion was
+   aimed at the wrong metric for this map.
+2. Under the **pim-friendly channel-slab map, paged ≡ contiguous ≡ 77%**:
+   a 16-token block there is 4 whole row-groups in one channel, so scatter
+   is harmless. No allocator story exists in that regime.
+3. The recoverable allocator gap lives exactly where the block's
+   **per-channel slice < row-group** (bt=16 ⇒ 2 KB slice vs 16 KB
+   row-group under channel-interleaved maps): paged 0.759/1173 GB/s vs
+   contiguous 0.958/2719 GB/s — **placement alone is worth 2.3×**, and
+   block size 16→128 recovers similarly (2805 GB/s). This is a real,
+   measured, recoverable gap — just narrower than the proposal's framing
+   (it requires a channel-interleaved map, which is what real hosts and
+   sharded PIM layouts use).
+
+Open question for the owner before Phase 1: keep the original framing with
+the honest numbers (2.3–2.6× recoverable, spec/prefix workloads may widen
+it), or reframe the headline around the block-size × address-map geometry
+(the derived-128 recommendation) with the allocator as the second lever.
+Note `spec` (tree speculation) is expected to churn placement much harder
+than steady — the baseline may yet drop well below 0.76; that is the next
+measurement either way.
+
 ## 2026-08-28 — early observations (pre-kill-test, from gate runs)
 
 - The brief's `host-centric` map (`ro:bg:ba:ch:co`) fails PIM differently

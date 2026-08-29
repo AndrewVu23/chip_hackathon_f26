@@ -107,9 +107,11 @@ Commands in `Makefile:kill-test`; raw CSVs in `results/phase0/`.
 | paged / pim-friendly                    | 0.969 | 1.000 | 2938 | 77% |
 | contig / pim-friendly (upper anchor)    | 0.969 | 1.000 | 2938 | 77% |
 
-Block-size probes (paged / host-cacheline, 500 req): bt=4 → M1 0.57,
-M3 511 GB/s (13%); bt=128 (derived PIM-natural size) → M1 0.96,
-M3 2805 GB/s (74%).
+Block-size probes (paged / host-cacheline, 500 req, seed 0; CSVs
+`results/phase0/probe_bt{4,128}_paged_hostcacheline.csv`): bt=4 → M1 0.571,
+M2 0.566, M3 508 GB/s (13.3%); bt=128 (the derived PIM-natural size) →
+M1 0.963, M2 0.989, M3 2795 GB/s (73.4%). (At bt=4 the per-channel slice is
+512 B, so even bank spread inside a window degrades — M2 falls too.)
 
 **Verdict per the brief's stop rule (M1 > 0.7 ⇒ stop and tell): STOPPED.**
 Baseline M1 is 0.97 on the brief's host-centric map and 0.76 on the

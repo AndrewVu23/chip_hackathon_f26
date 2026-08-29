@@ -6,3 +6,5 @@ results/
 figures/
 .pytest_cache/
 .DS_Store
+third_party/ramulator2/
+third_party/attacc_simulator/

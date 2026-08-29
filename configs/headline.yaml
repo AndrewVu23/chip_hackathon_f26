@@ -1,0 +1,16 @@
+# Phase 2 — headline-figure sweep (consumed by pimkv.sweep, not built yet).
+# Schema is settled now so results land in a stable layout; values may widen.
+#
+# headline.png = M1 (and M3) vs block size, one curve per allocator,
+# spec-workload overlay. One CSV per cell under results/headline/.
+
+workloads: [steady, spec]          # spec lands in Phase 1
+allocators: [paged, contiguous, pim-aware]
+dram: hbm3-pim
+addrmaps: [pim-friendly, host-centric, host-cacheline]
+block_tokens: [4, 8, 16, 32, 64, 128, 256]   # 128 = derived PIM-natural size
+requests: 2000
+seeds: [0, 1, 2]
+max_batch: 64
+coalesce: window
+window: 64

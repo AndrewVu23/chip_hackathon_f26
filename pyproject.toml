@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pimkv"
+version = "0.1.0"
+description = "PIM-aware KV-cache allocation study: measuring and recovering DRAM row alignment lost to paged LLM serving allocators"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy",
+    "pandas",
+    "matplotlib",
+    "pyyaml",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[tool.setuptools]
+packages = ["pimkv"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

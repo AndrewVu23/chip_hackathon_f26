@@ -1,0 +1,10 @@
+workload,allocator,block_tokens,seq_id,step,seq_len,n_bursts,m1,m2,m3_gbps,ram_row_hits,ram_row_misses,ram_row_conflicts,ram_hit_frac,ram_cycles,ram_cycles_per_burst,ram_stats_found,wall_s,mem_clock_ratio
+steady,paged,16,45,400,332,42496,0.83333333,0.98809524,1460.6574,34851,512,6656,0.8294105,6567,0.15453219,cycles;num_read_reqs;row_conflicts;row_hits;row_misses,0.080237208,64
+steady,paged,16,58,400,222,28416,0.75,0.99107143,1121.7765,20777,512,6656,0.74349615,4823,0.16972832,cycles;num_read_reqs;row_conflicts;row_hits;row_misses,0.060922291,64
+steady,paged,16,63,400,426,54528,0.81481481,0.98611111,1364.9061,43853,512,9728,0.81069639,8639,0.15843237,cycles;num_read_reqs;row_conflicts;row_hits;row_misses,0.10429792,64
+steady,pim-aware,16,45,400,332,42496,0.96428571,0.98809524,2813.7223,40470,512,1024,0.9634338,5531,0.13015343,cycles;num_read_reqs;row_conflicts;row_hits;row_misses,0.066969375,64
+steady,pim-aware,16,58,400,222,28416,0.96428571,0.99107143,2822.1974,26896,512,512,0.96332378,3675,0.12932855,cycles;num_read_reqs;row_conflicts;row_hits;row_misses,0.045173958,64
+steady,pim-aware,16,63,400,426,54528,0.96296296,0.98611111,2782.0408,51994,512,1536,0.96210355,7131,0.13077685,cycles;num_read_reqs;row_conflicts;row_hits;row_misses,0.084310042,64
+steady,contiguous,16,45,400,332,42496,0.96428571,0.98809524,2813.7223,40470,512,1024,0.9634338,5531,0.13015343,cycles;num_read_reqs;row_conflicts;row_hits;row_misses,0.066192125,64
+steady,contiguous,16,58,400,222,28416,0.94642857,0.99107143,2505.682,26390,512,1024,0.94499749,3771,0.13270693,cycles;num_read_reqs;row_conflicts;row_hits;row_misses,0.046196583,64
+steady,contiguous,16,63,400,426,54528,0.96296296,0.98611111,2782.0408,51994,512,1536,0.96210355,7131,0.13077685,cycles;num_read_reqs;row_conflicts;row_hits;row_misses,0.085568042,64

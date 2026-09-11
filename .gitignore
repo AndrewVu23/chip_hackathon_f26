@@ -2,9 +2,17 @@
 __pycache__/
 *.pyc
 *.egg-info/
-results/
-figures/
 .pytest_cache/
 .DS_Store
+
+# External simulators: cloned + built per third_party/README.md
 third_party/ramulator2/
 third_party/attacc_simulator/
+
+# Results: aggregated summaries and per-run configs are committed so every
+# reported number is traceable. The per-run metric CSVs (57 MB) and the
+# simulator traces (12 MB) are regenerable with `make credibility`.
+results/**/*.csv
+!results/**/summary.csv
+results/**/*.trace
+results/**/*.yaml

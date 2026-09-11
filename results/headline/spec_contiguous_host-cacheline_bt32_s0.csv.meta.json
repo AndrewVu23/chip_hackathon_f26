@@ -1,0 +1,42 @@
+{
+  "config": {
+    "addrmap": "host-cacheline",
+    "allocator": "contiguous",
+    "block_tokens": 32,
+    "coalesce": "window",
+    "dram": "hbm3-pim",
+    "max_batch": 64,
+    "model": "llama-gqa-8kv",
+    "pool_blocks": 0,
+    "requests": 1000,
+    "sample_every": 16,
+    "sample_seqs": 8,
+    "seed": 0,
+    "window": 64,
+    "workload": "spec"
+  },
+  "summary": {
+    "blocks_allocated_total": 27017,
+    "completed": 1000,
+    "copied_bytes": 1081679872,
+    "cow_copies": 0,
+    "decode_steps": 4643,
+    "dropped": 0,
+    "frag_failures": 0,
+    "m1_mean": 0.958815192432347,
+    "m1_p05": 0.94,
+    "m1_p95": 0.967741935483871,
+    "m2_mean": 0.9892268042179997,
+    "m2_p05": 0.9642857142857143,
+    "m2_p95": 1.0,
+    "m3_gbps_mean": 2725.293991338491,
+    "m4_ns_mean": 840.9364229156963,
+    "m4_ns_p95": 2076.819999999999,
+    "n_requests": 1000,
+    "peak_live_blocks": 1069,
+    "pool_blocks": 1580,
+    "pool_utilization_peak": 0.6765822784810127,
+    "samples": 2147,
+    "spec_stalls": 0
+  }
+}

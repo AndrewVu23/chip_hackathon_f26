@@ -35,8 +35,20 @@ def test_longctx_shapes():
     assert outputs.max() <= 256
 
 
-def test_phase1_workloads_are_explicit_stubs():
-    with pytest.raises(NotImplementedError):
-        prefix(10, seed=0)
-    with pytest.raises(NotImplementedError):
-        spec(10, seed=0)
+def test_prefix_shapes():
+    reqs = prefix(1000, seed=0)
+    shared = [r for r in reqs if r.prefix_id is not None]
+    assert 0.6 < len(shared) / len(reqs) < 0.8
+    plens = {r.prefix_len for r in shared}
+    assert len(plens) == 1                    # one common system prompt
+    pl = plens.pop()
+    assert 500 <= pl <= 1500
+    assert all(r.prompt_len > r.prefix_len for r in shared)
+    assert prefix(1000, seed=0) == reqs       # deterministic
+
+
+def test_spec_is_steady_lengths():
+    # speculation is an allocation pattern executed by the simulator;
+    # the request stream itself matches steady
+    assert spec(100, seed=5) == __import__("pimkv.workload",
+                                           fromlist=["steady"]).steady(100, 5)

@@ -2,22 +2,37 @@
 
 One iteration of the serving engine's decode loop == one step. Per step:
 
-  1. Admission (FCFS, head-of-line blocking, like vLLM's scheduler): a
-     request is admitted when the batch has room AND the pool can hold its
-     final footprint on top of the growth already committed to running
-     sequences. This oracle admission gate (final lengths are known to the
-     simulator) removes preemption/swapping from scope — identical for every
-     policy, so comparisons are fair; recorded in LIMITATIONS.
-  2. Decode: every running sequence appends one token, allocating a new
-     block when it crosses a block boundary.
+  1. Admission (FCFS, head-of-line blocking): a request is admitted when the
+     batch has room AND the pool can hold its final footprint on top of the
+     growth already committed to running sequences (oracle admission — final
+     lengths known; removes preemption/swap from scope, identical for every
+     policy). Prefix-workload requests attach to a pinned prefix cache
+     (block sharing, ref-counted) when the allocator supports it.
+  2. Decode. Normal workloads: every running sequence appends one token,
+     allocating a block at each boundary. Spec workload: every sequence
+     runs one speculation round (see _spec_round).
   3. Sampling: every ``sample_every`` steps, up to ``sample_seqs`` running
-     sequences are measured: the sequence's whole KV cache is enumerated as
-     burst addresses (block table -> linear -> addrmap) and pushed through
-     the PIM command model (M1..M4). One CSV row per (step, sequence).
+     sequences are measured: block table -> linear burst addresses ->
+     addrmap -> all-bank command model (M1..M4). One CSV row per
+     (step, sequence).
   4. Finished sequences release their blocks.
 
-Determinism: everything is driven by the workload seed and ``seed`` (metric
-sampling); same seeds -> byte-identical CSV (validation gate 4).
+Speculation model (--workload spec): per round, the sequence forks W draft
+branches of depth D (brief §5.1: draft tree W=4 D=3; we model W independent
+depth-D paths — a mid-density tree). Each branch owns a private tail: a
+copy-on-write duplicate of the partial last block (vLLM append_slot
+semantics) plus overflow blocks. Draft i (1-indexed) is accepted with
+probability accept^i, sequentially until the first rejection, plus one
+bonus token; the adopted branch's tail is spliced into the block table and
+every other branch is freed — allocate/free churn several times per
+committed token. If the pool cannot hold W branch tails, the round degrades
+to ordinary 1-token decode (counted as spec_stalls — real engines disable
+speculation under memory pressure too). The contiguous oracle instead uses
+a per-sequence reserved scratch region (zero churn) and pays a copy of the
+accepted tokens into its span (copied_bytes — the price of contiguity).
+
+Determinism: workload seed + ``seed`` (sampling: seed+1, speculation:
+seed+2) -> byte-identical CSV (validation gate 4).
 """
 from __future__ import annotations
 
@@ -35,13 +50,25 @@ from .pimmodel import (decode_latency_ns, effective_bandwidth_gbps,
 from .workload import Request
 
 
+@dataclass(frozen=True)
+class SpecParams:
+    width: int = 4      # W draft branches per round
+    depth: int = 3      # D draft tokens per branch
+    accept: float = 0.8  # draft i accepted with accept**i
+
+    def scratch_blocks(self, block_tokens: int) -> int:
+        """Worst-case tail blocks per branch: partial block + D drafts +
+        the bonus token emitted on full acceptance."""
+        return -(-(block_tokens - 1 + self.depth + 1) // block_tokens)
+
+
 @dataclass
 class SeqState:
     rid: int
-    length: int          # tokens currently in the KV cache
+    length: int          # tokens currently committed to the KV cache
     total_len: int       # prompt + output
-    total_blocks: int
-    blocks: list[int] = field(default_factory=list)
+    total_blocks: int    # final footprint incl. contiguous spec scratch
+    scratch: list[int] = field(default_factory=list)
 
 
 @dataclass
@@ -63,14 +90,14 @@ def auto_pool_blocks(requests: list[Request], block_tokens: int,
                                                 block_tokens))
 
 
-def measure_seq(seq: SeqState, am: AddrMap, geom: DramGeometry,
-                shape: ModelShape, timing: PimTiming, block_tokens: int,
-                window: int, mode: str) -> dict:
+def measure_seq(seq: SeqState, table: list[int], am: AddrMap,
+                geom: DramGeometry, shape: ModelShape, timing: PimTiming,
+                block_tokens: int, window: int, mode: str) -> dict:
     bpt = shape.kv_bytes_per_token // geom.burst_bytes
     bpb = block_tokens * bpt
     n_bursts = seq.length * bpt
     lb = np.arange(n_bursts, dtype=np.int64)
-    blocks = np.asarray(seq.blocks, dtype=np.int64)
+    blocks = np.asarray(table, dtype=np.int64)
     phys = blocks[lb // bpb] * bpb + (lb % bpb)
     m = am.map(phys)
     s = sequence_metrics(m.ch, m.bank, m.ro, geom, window=window, mode=mode)
@@ -87,7 +114,8 @@ def simulate(requests: list[Request], alloc: KVAllocator, geom: DramGeometry,
              max_batch: int = 64, sample_every: int = 16,
              sample_seqs: int = 8, window: int = 64, mode: str = "window",
              timing: PimTiming = DEFAULT_TIMING, seed: int = 0,
-             check_every: int = 64) -> SimResult:
+             check_every: int = 64,
+             spec: SpecParams | None = None) -> SimResult:
     if shape.kv_bytes_per_token % geom.burst_bytes:
         raise ValueError("kv_bytes_per_token must be a multiple of burst_bytes")
     bpb = block_tokens * (shape.kv_bytes_per_token // geom.burst_bytes)
@@ -96,43 +124,126 @@ def simulate(requests: list[Request], alloc: KVAllocator, geom: DramGeometry,
             f"pool ({alloc.num_blocks} blocks x {bpb} bursts) exceeds "
             f"geometry capacity {geom.total_bursts} bursts")
 
-    rng = np.random.default_rng(seed + 1)
+    bt = block_tokens
+    rng = np.random.default_rng(seed + 1)       # metric sampling
+    rng_spec = np.random.default_rng(seed + 2)  # speculation decisions
     t0 = time.perf_counter()
     reqs = sorted(requests, key=lambda r: (r.arrival_step, r.rid))
     active: dict[int, SeqState] = {}
+    prefix_cache: dict[int, list[int]] = {}     # prefix_id -> full blocks
     rows: list[dict] = []
-    i = 0                      # next pending request
+    i = 0
     t = 0
     completed = 0
     dropped: list[int] = []
     frag_failures = 0
     decode_steps = 0
+    spec_stalls = 0
+    copied_tokens = 0
     peak_live = 0
+    scratch_per_seq = (spec.scratch_blocks(bt) * spec.width
+                       if (spec and alloc.persistent_scratch) else 0)
 
+    def committed() -> int:
+        return sum(s.total_blocks - len(alloc.get_table(s.rid))
+                   - len(s.scratch) for s in active.values())
+
+    # ---------------------------------------------------------------- admit
+    def try_admit(r: Request) -> bool:
+        nonlocal frag_failures
+        total_blocks = _ceil_div(r.prompt_len + r.output_len, bt)
+        prompt_blocks = _ceil_div(r.prompt_len, bt)
+        shared: list[int] = []
+        if (r.prefix_id is not None and alloc.supports_sharing
+                and r.prefix_len >= bt):
+            if r.prefix_id not in prefix_cache:
+                n_shared = r.prefix_len // bt
+                cache_id = -1000 - r.prefix_id
+                if alloc.num_free - committed() < n_shared + total_blocks:
+                    return False
+                try:
+                    prefix_cache[r.prefix_id] = alloc.admit(
+                        cache_id, n_shared, n_shared)
+                except AdmissionFailure:
+                    frag_failures += 1
+                    return False
+            shared = prefix_cache[r.prefix_id]
+        total_with_scratch = total_blocks + scratch_per_seq
+        new_needed = total_with_scratch - len(shared)
+        if alloc.num_free - committed() < new_needed:
+            return False
+        try:
+            if shared:
+                n_new = prompt_blocks - len(shared)
+                alloc.admit_shared(r.rid, shared, n_new, total_with_scratch)
+            else:
+                alloc.admit(r.rid, prompt_blocks, total_with_scratch)
+        except AdmissionFailure:
+            frag_failures += 1
+            return False
+        s = SeqState(rid=r.rid, length=r.prompt_len,
+                     total_len=r.prompt_len + r.output_len,
+                     total_blocks=total_with_scratch)
+        if scratch_per_seq:
+            s.scratch = alloc.take_scratch(r.rid, scratch_per_seq)
+        active[r.rid] = s
+        return True
+
+    # ------------------------------------------------------------ spec round
+    def spec_round(s: SeqState) -> None:
+        nonlocal spec_stalls, copied_tokens
+        remaining = s.total_len - s.length
+        # acceptance: draft i (1-indexed) survives with accept**i
+        k = 0
+        while k < spec.depth and rng_spec.random() < spec.accept ** (k + 1):
+            k += 1
+        adv = min(k + 1, remaining)
+        w_star = int(rng_spec.integers(spec.width))
+
+        if alloc.persistent_scratch:
+            # contiguous oracle: branches live in the fixed scratch region;
+            # accepted tokens are copied into the span
+            grow = _ceil_div(s.length + adv, bt) - _ceil_div(s.length, bt)
+            for _ in range(grow):
+                alloc.append_block(s.rid)
+            copied_tokens += adv
+            s.length += adv
+            return
+
+        r = s.length % bt
+        # a branch tail must hold the partial block, D drafts, and the
+        # bonus token (adv can reach D+1)
+        d1 = spec.depth + 1
+        n_br = _ceil_div(r + d1, bt) if r else _ceil_div(d1, bt)
+        if alloc.num_free < spec.width * n_br:
+            # pool too tight for branch tails: degrade to plain decode
+            spec_stalls += 1
+            s.length += 1
+            if s.length > len(alloc.get_table(s.rid)) * bt:
+                alloc.append_block(s.rid)
+            return
+        branches = [alloc.alloc_scratch(s.rid, n_br)
+                    for _ in range(spec.width)]
+        if r:
+            copied_tokens += spec.width * r   # each branch CoWs the tail
+        keep = _ceil_div(r + adv, bt) if r else _ceil_div(adv, bt)
+        alloc.spec_round_adopt(s.rid, replace_tail=bool(r),
+                               chosen=branches[w_star], keep=keep,
+                               branches=branches)
+        s.length += adv
+
+    # ------------------------------------------------------------- main loop
     while i < len(reqs) or active:
-        # -- 1. admission ---------------------------------------------------
         while (i < len(reqs) and reqs[i].arrival_step <= t
                and len(active) < max_batch):
             r = reqs[i]
-            total_blocks = _ceil_div(r.prompt_len + r.output_len, block_tokens)
-            prompt_blocks = _ceil_div(r.prompt_len, block_tokens)
-            committed = sum(s.total_blocks - len(s.blocks)
-                            for s in active.values())
-            if alloc.num_free - committed < total_blocks:
-                break                      # wait for space (head-of-line)
-            try:
-                blocks = alloc.admit(r.rid, prompt_blocks, total_blocks)
-            except AdmissionFailure:
-                frag_failures += 1
-                if not active:
-                    dropped.append(r.rid)  # can never be placed; skip it
-                    i += 1
-                    continue
-                break                      # retry once something frees
-            active[r.rid] = SeqState(rid=r.rid, length=r.prompt_len,
-                                     total_len=r.prompt_len + r.output_len,
-                                     total_blocks=total_blocks, blocks=blocks)
-            i += 1
+            if try_admit(r):
+                i += 1
+            elif not active:
+                dropped.append(r.rid)   # can never be placed; skip it
+                i += 1
+            else:
+                break                   # head-of-line: wait for space
 
         if not active:
             if i < len(reqs):
@@ -140,40 +251,46 @@ def simulate(requests: list[Request], alloc: KVAllocator, geom: DramGeometry,
                 continue
             break
 
-        # -- 2. decode: one token per running sequence ----------------------
         finished = []
         for s in active.values():
-            s.length += 1
-            if s.length > len(s.blocks) * block_tokens:
-                s.blocks.append(alloc.append_block(s.rid))
+            if spec is not None:
+                spec_round(s)
+            else:
+                s.length += 1
+                if s.length > len(alloc.get_table(s.rid)) * bt:
+                    alloc.append_block(s.rid)
             if s.length >= s.total_len:
                 finished.append(s.rid)
         decode_steps += 1
         peak_live = max(peak_live, alloc.num_live)
 
-        # -- 3. sampling ----------------------------------------------------
         if t % sample_every == 0:
             ids = sorted(active)
             pick = rng.choice(len(ids), size=min(sample_seqs, len(ids)),
                               replace=False)
             for j in sorted(pick.tolist()):
-                row = measure_seq(active[ids[j]], am, geom, shape, timing,
-                                  block_tokens, window, mode)
+                s = active[ids[j]]
+                row = measure_seq(s, alloc.get_table(s.rid), am, geom, shape,
+                                  timing, bt, window, mode)
                 row.update(step=t, live_blocks=alloc.num_live,
                            free_blocks=alloc.num_free)
                 rows.append(row)
 
-        # -- 4. completion --------------------------------------------------
         for rid in finished:
+            s = active.pop(rid)
+            if s.scratch:
+                alloc.unref_blocks(s.scratch)
             alloc.release(rid)
-            del active[rid]
             completed += 1
 
         if check_every and t % check_every == 0:
             alloc.assert_conservation()
         t += 1
 
+    for pid in sorted(prefix_cache):
+        alloc.release(-1000 - pid)
     alloc.assert_conservation()
+
     cols = ["step", "seq_id", "seq_len", "kv_bytes", "n_bursts", "n_cmds",
             "n_hits", "m1", "m2", "m3_gbps", "m4_ns", "live_blocks",
             "free_blocks"]
@@ -185,6 +302,10 @@ def simulate(requests: list[Request], alloc: KVAllocator, geom: DramGeometry,
         samples=len(df), peak_live_blocks=peak_live,
         pool_blocks=alloc.num_blocks,
         pool_utilization_peak=peak_live / alloc.num_blocks,
+        blocks_allocated_total=alloc.allocated_total,
+        cow_copies=alloc.cow_copies,
+        spec_stalls=spec_stalls,
+        copied_bytes=copied_tokens * shape.kv_bytes_per_token,
         m1_mean=float(df.m1.mean()) if len(df) else float("nan"),
         m1_p05=q("m1", 5), m1_p95=q("m1", 95),
         m2_mean=float(df.m2.mean()) if len(df) else float("nan"),

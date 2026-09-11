@@ -83,16 +83,43 @@ def longctx(n_requests: int, seed: int, *, arrival_rate: float = 0.02,
             for i in range(n_requests)]
 
 
-def prefix(n_requests: int, seed: int, **kw) -> list[Request]:
-    raise NotImplementedError(
-        "prefix workload is Phase 1 (needs copy-on-write support in the "
-        "simulator); see AGENT_BRIEF §5.1 and NOTES.md")
+def prefix(n_requests: int, seed: int, *, arrival_rate: float = 0.25,
+           share_frac: float = 0.7, unique_median: float = 150.0,
+           output_median: float = 200.0) -> list[Request]:
+    """Prefix sharing: ``share_frac`` of requests start with one common
+    system prompt of 500-1500 tokens (drawn once per seed); their private
+    remainder is lognormal (median ~150). The rest are plain steady-style
+    requests. Exercises the prefix cache + block sharing path (contiguous
+    cannot share and pays a full private copy — reported, not hidden)."""
+    rng = np.random.default_rng(seed)
+    prefix_len = int(rng.integers(500, 1500 + 1))
+    arrive = _poisson_arrivals(rng, n_requests, arrival_rate)
+    shared = rng.random(n_requests) < share_frac
+    uniq = _lognormal_lengths(rng, n_requests, unique_median, 0.8, 8, 4096)
+    plain = _lognormal_lengths(rng, n_requests, 200.0, 1.0, 8, 8192)
+    outputs = _lognormal_lengths(rng, n_requests, output_median, 0.8, 4, 2048)
+    reqs = []
+    for i in range(n_requests):
+        if shared[i]:
+            reqs.append(Request(rid=i, arrival_step=int(arrive[i]),
+                                prompt_len=prefix_len + int(uniq[i]),
+                                output_len=int(outputs[i]),
+                                prefix_id=0, prefix_len=prefix_len))
+        else:
+            reqs.append(Request(rid=i, arrival_step=int(arrive[i]),
+                                prompt_len=int(plain[i]),
+                                output_len=int(outputs[i])))
+    return reqs
 
 
 def spec(n_requests: int, seed: int, **kw) -> list[Request]:
-    raise NotImplementedError(
-        "spec (tree speculative decoding) workload is Phase 1 (needs "
-        "fork/rewind support in the simulator); see AGENT_BRIEF §5.1")
+    """Tree speculative decoding — the adversarial case. Same arrival/length
+    distributions as ``steady``; the speculation itself (fork W draft
+    branches of depth D per decode round, adopt one, free the rest) is
+    executed by the simulator (sim.py, --spec-width/--spec-depth/
+    --spec-accept), because it is an allocation-event pattern, not a
+    request-stream property."""
+    return steady(n_requests, seed, **kw)
 
 
 WORKLOADS = {

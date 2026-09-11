@@ -17,11 +17,28 @@ import sys
 from pathlib import Path
 
 from .addrmap import AddrMap, SCHEMES
-from .allocator import ALLOCATORS
+from .allocator import ALLOCATORS, make_allocator
 from .config import (DEFAULT_TIMING, DRAM_PRESETS, MODEL_PRESETS,
                      derive_block_tokens)
-from .sim import auto_pool_blocks, simulate
+from .sim import SpecParams, auto_pool_blocks, simulate
 from .workload import WORKLOADS
+
+
+def frame_blocks_for(geom, shape, block_tokens: int) -> int:
+    """Blocks per pim-aware alignment frame. A frame's linear extent is one
+    row index across every bank of every channel (rowgroup_bytes * channels
+    — the all-bank alignment quantum); derived, never hardcoded."""
+    frame_bytes = geom.rowgroup_bytes * geom.channels
+    block_bytes = block_tokens * shape.kv_bytes_per_token
+    if block_bytes >= frame_bytes:
+        if block_bytes % frame_bytes:
+            raise ValueError("block size must be a multiple of the alignment "
+                             f"frame ({frame_bytes} B) when larger than it")
+        return 1
+    if frame_bytes % block_bytes:
+        raise ValueError(f"alignment frame ({frame_bytes} B) must be a "
+                         f"multiple of block size ({block_bytes} B)")
+    return frame_bytes // block_bytes
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -47,6 +64,12 @@ def build_parser() -> argparse.ArgumentParser:
                    help="measure metrics every N decode steps")
     p.add_argument("--sample-seqs", type=int, default=8,
                    help="sequences measured per sampled step")
+    p.add_argument("--spec-width", type=int, default=4,
+                   help="spec workload: draft branches per round (W)")
+    p.add_argument("--spec-depth", type=int, default=3,
+                   help="spec workload: draft tokens per branch (D)")
+    p.add_argument("--spec-accept", type=float, default=0.8,
+                   help="spec workload: draft i accepted with p**i")
     p.add_argument("--coalesce", choices=("window", "inorder"),
                    default="window",
                    help="PIM controller model: reorder within a window "
@@ -68,17 +91,24 @@ def main(argv: list[str] | None = None) -> int:
     requests = WORKLOADS[args.workload](args.requests, args.seed)
     pool_blocks = args.pool_blocks or auto_pool_blocks(
         requests, block_tokens, args.max_batch)
-    alloc = ALLOCATORS[args.allocator](pool_blocks, seed=args.seed)
+    fb = (frame_blocks_for(geom, shape, block_tokens)
+          if args.allocator == "pim-aware" else 1)
+    alloc = make_allocator(args.allocator, pool_blocks, args.seed,
+                           frame_blocks=fb)
+    spec = (SpecParams(width=args.spec_width, depth=args.spec_depth,
+                       accept=args.spec_accept)
+            if args.workload == "spec" else None)
 
     res = simulate(requests, alloc, geom, shape, am,
                    block_tokens=block_tokens, max_batch=args.max_batch,
                    sample_every=args.sample_every,
                    sample_seqs=args.sample_seqs, window=args.window,
-                   mode=args.coalesce, timing=DEFAULT_TIMING, seed=args.seed)
+                   mode=args.coalesce, timing=DEFAULT_TIMING, seed=args.seed,
+                   spec=spec)
 
     config = dict(vars(args), out=str(args.out) if args.out else None,
                   block_tokens_effective=block_tokens,
-                  pool_blocks_effective=pool_blocks,
+                  pool_blocks_effective=alloc.num_blocks,
                   dram_geometry=geom.name, rowgroup_bytes=geom.rowgroup_bytes,
                   kv_bytes_per_token=shape.kv_bytes_per_token,
                   timing_tccd_ab_ns=DEFAULT_TIMING.tccd_ab_ns,
@@ -106,6 +136,11 @@ def main(argv: list[str] | None = None) -> int:
     print(f"M2 bank parallelism  mean={s['m2_mean']:.4f}  "
           f"p05={s['m2_p05']:.4f}  p95={s['m2_p95']:.4f}")
     print(f"M3 effective BW      mean={s['m3_gbps_mean']:.1f} GB/s")
+    if s["spec_stalls"] or s["copied_bytes"] or s["cow_copies"]:
+        print(f"spec/CoW             cow_copies={s['cow_copies']}  "
+              f"spec_stalls={s['spec_stalls']}  "
+              f"copied={s['copied_bytes']/1e6:.1f} MB  "
+              f"phys_allocs={s['blocks_allocated_total']}")
     print(f"M4 decode latency    mean={s['m4_ns_mean']:.0f} ns  "
           f"p95={s['m4_ns_p95']:.0f} ns")
     print(f"runtime {s['runtime_s']:.1f}s")

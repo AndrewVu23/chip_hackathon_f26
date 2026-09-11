@@ -323,3 +323,61 @@ vLLM's LIFO free list yields almost NO physically adjacent consecutive
 blocks under churn, at frame_spread 5.4-16.3. This confirms the project's
 core thesis structurally, without relying on the analytical DRAM model at
 all — a stronger form of the argument than M1 alone.
+
+## 2026-09-11 — PHASE A: credibility sweeps (114 runs, configs/phaseA.yaml)
+
+### A1 — seed variance: PASSES, decisively
+Three seeds over {steady,spec} x {paged,pim-aware,contiguous} x bt{4,16,64,128}.
+**Worst max-min spread of M1 across all 24 cells: 0.0079**; typical 0.0003.
+Every Phase 2 curve stands as reported. Single-seed results were safe.
+
+### A2 — controller reorder window: THE REAL CAVEAT
+Same grid with `--coalesce inorder` (zero reordering, the pessimistic
+endpoint) vs the default 64-burst window.
+
+PIM-aware advantage (M3 pim-aware / M3 paged), steady:
+
+| bt | window | inorder |
+|---:|---:|---:|
+| 4   | 6.48x | 2.01x |
+| 16  | 2.29x | 1.24x |
+| 64  | 1.20x | 1.04x |
+| 128 | 1.00x | 1.00x |
+
+**The sign and the shape are invariant — pim-aware >= paged everywhere,
+small blocks always worst, convergence at bt=128 always — but the
+MAGNITUDE is assumption-dependent.** The headline "2.3x" holds only with a
+reorder window; with none it is 1.24x. Absolute M3 under in-order caps at
+~454 GB/s (12% of ideal) for EVERY allocator including contiguous, i.e. in
+that regime the controller, not the allocator, is the bottleneck — which is
+why zero-reordering is an unrealistically pessimistic straw man for a real
+PIM controller with request queues. Correct framing for the writeup: quote
+the window result as the headline, quote 1.24x as the floor, and state that
+the true controller lies between.
+
+### A3 — contiguous's makespan penalty is a MEMORY penalty (steady, bt16)
+
+| headroom | contig frag_failures | contig makespan | paged/pim-aware makespan |
+|---:|---:|---:|---:|
+| 1.1 | 5472 | 7406 | 6486 / 6478 |
+| 1.3 | 3343 | 6485 | 5959 / 5955 |
+| 1.6 |  682 | 5909 | 5836 / 5836 |
+| 2.0 |    0 | 5836 | 5836 / 5836 |
+
+The 8.9% penalty reported in Phase 2 is real *at 1.3x headroom* and
+**disappears entirely at 2.0x**. So contiguous placement is not impossible,
+it is purchasable: it costs ~2x the KV pool. That is precisely the capacity
+argument that motivated paging, and it is a cleaner way to state the
+tradeoff than "the oracle stalls". paged and pim-aware take ZERO admission
+failures at every headroom, and M1 is headroom-invariant for all three.
+
+### A4 — offered load: NULL RESULT, experiment was mis-designed
+Arrival rate 0.25 -> 0.5 -> 1.0 moved the pim-aware/paged ratio only
+2.29 -> 2.32 -> 2.34, and peak live blocks not at all (~2500). Reason:
+`max_batch=64` already saturates at rate 0.25, so raising arrivals just
+lengthens the queue without adding memory pressure. The experiment tested
+nothing. The memory-pressure evidence actually comes from A3's headroom-1.1
+row, where the pool is tight and paged/pim-aware still show zero admission
+failures and unchanged M1 — so pool pressure does not alter the allocator
+comparison. To test load properly would require raising max_batch, not the
+arrival rate; logged for whoever picks this up.

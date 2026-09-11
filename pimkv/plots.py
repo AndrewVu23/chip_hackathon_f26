@@ -66,23 +66,29 @@ def headline(summary_csv: Path, out_path: Path) -> None:
             for ax, col in ((ax1, "m1_mean"), (ax2, "m3_gbps_mean")):
                 ax.plot(d.block_tokens, d[col], WL_STYLE[wl],
                         color=ALLOC_COLOR[al], lw=2, marker="o", ms=5,
-                        zorder=3,
-                        label=(f"{ALLOC_LABEL[al]}, {wl}"
-                               if (wl == "steady" or al == "paged")
-                               else None))
+                        zorder=3)
     for ax in (ax1, ax2):
         _style_axis(ax)
         ax.set_xscale("log", base=2)
         ax.set_xticks(sorted(df.block_tokens.unique()))
         ax.get_xaxis().set_major_formatter(plt.ScalarFormatter())
-        for x, txt in ((16, "vLLM default"), (128, "derived\nPIM-natural")):
+        for x in (16, 128):
             if x in df.block_tokens.values:
-                ax.axvline(x, color=MUTED, lw=1, ls=":", zorder=1)
-        ax1.set_ylim(0, 1.02)
+                ax.axvline(x, color=MUTED, lw=1.4, ls=(0, (2, 3)), zorder=1)
+    ax1.set_ylim(0, 1.02)
     for x, txt in ((16, "vLLM default (16)"), (128, "derived PIM-natural (128)")):
         if x in df.block_tokens.values:
             ax1.annotate(txt, (x, 0.04), textcoords="offset points",
                          xytext=(6, 0), fontsize=11, color=MUTED)
+    # legend: color = allocator, line style = workload
+    from matplotlib.lines import Line2D
+    handles = [Line2D([], [], color=ALLOC_COLOR[al], lw=2.5,
+                      label=ALLOC_LABEL[al])
+               for al in ("paged", "pim-aware", "contiguous")]
+    handles += [Line2D([], [], color=INK, lw=1.8, ls=WL_STYLE[wl],
+                       label=f"{wl} workload") for wl in ("steady", "spec")]
+    ax1.legend(handles=handles, loc="center right", fontsize=11,
+               framealpha=0.9)
     ax1.set_ylabel("M1 — all-bank row-hit rate")
     ax2.set_ylabel("M3 — effective PIM bandwidth (GB/s)")
     ax2.set_xlabel("KV block size (tokens)")
@@ -90,7 +96,6 @@ def headline(summary_csv: Path, out_path: Path) -> None:
     ax1.set_title("Paged for capacity, punished by rows — "
                   "HBM3-PIM, realistic host address map",
                   color=INK, fontsize=15, pad=12)
-    ax1.legend(loc="center right", fontsize=11, framealpha=0.9)
     fig.tight_layout()
     out_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_path, dpi=160)
@@ -126,9 +131,9 @@ def bandwidth(summary_csv: Path, out_path: Path, ideal_gbps: float) -> None:
     ax.set_xticks(x, wls)
     ax.set_ylabel("M3 — effective PIM bandwidth (GB/s)")
     ax.set_ylim(0, ideal_gbps * 1.08)
-    ax.set_title("Effective PIM bandwidth by workload — 16-token blocks, "
-                 "HBM3-PIM, realistic host map", color=INK, fontsize=14,
-                 pad=12)
+    ax.set_title("Effective PIM bandwidth by workload\n"
+                 "16-token blocks, HBM3-PIM, realistic host map",
+                 color=INK, fontsize=14, pad=10)
     ax.legend(fontsize=11, framealpha=0.9)
     fig.tight_layout()
     out_path.parent.mkdir(parents=True, exist_ok=True)

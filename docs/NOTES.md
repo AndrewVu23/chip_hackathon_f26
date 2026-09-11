@@ -196,3 +196,64 @@ Gate tests re-verified after the refactor (64 tests): conservation holds
 each step under sharing + spec churn; spec runs byte-deterministic; pim-aware
 M1 >= 0.90 vs paged ~0.76 under host-cacheline in the small smoke runs.
 Full-size sweep numbers land below when the 48-run sweep finishes.
+
+## 2026-09-10 — PHASE 2 RESULTS (headline sweep, results/headline/)
+
+All: hbm3-pim, host-cacheline map, 1000 requests, seed 0, max_batch 64.
+Ideal all-bank BW = 3810 GB/s. `make sweep` reproduces (48 runs, ~25 min).
+
+**M1 / M3 vs block size** (steady | spec):
+
+| bt | paged | pim-aware | contiguous | paged-spec | pim-aware-spec |
+|---:|------:|----------:|-----------:|-----------:|---------------:|
+| 4   | 0.542 / 432  | 0.963 / 2800 | 0.959 / 2648 | 0.538 / 405  | 0.956 / 2312 |
+| 8   | 0.552 / 777  | 0.963 / 2801 | 0.958 / 2710 | 0.533 / 723  | 0.929 / 2303 |
+| 16  | 0.769 / 1226 | 0.963 / 2805 | 0.958 / 2712 | 0.756 / 1153 | 0.879 / 1849 |
+| 32  | 0.879 / 1777 | 0.963 / 2799 | 0.959 / 2727 | 0.873 / 1715 | 0.912 / 2110 |
+| 64  | 0.935 / 2337 | 0.963 / 2799 | 0.960 / 2753 | 0.933 / 2304 | 0.943 / 2471 |
+| 128 | 0.963 / 2803 | 0.963 / 2803 | 0.963 / 2805 | 0.963 / 2795 | 0.963 / 2795 |
+| 256 | 0.963 / 2802 | 0.963 / 2802 | 0.963 / 2804 | 0.963 / 2795 | 0.963 / 2795 |
+
+**bt=16 across workloads (M3 GB/s)**: steady 1226/2805/2712,
+longctx 2823/2938/2936, prefix 2042/2867/2865, spec 1153/1849/2710
+(paged/pim-aware/contiguous).
+
+Findings, in order of importance:
+
+1. **The fix works, and makes block size irrelevant on steady traffic.**
+   PIM-aware hits 0.963 M1 (the 1−1/cols geometric ceiling) at EVERY block
+   size, including 4 — 2.3× bandwidth over paged at bt=16, 6.5× at bt=4. It
+   even edges the contiguous oracle (ascending aligned frames vs vLLM's
+   descending spans), with none of contiguous's costs: contiguous suffered
+   3343 admission stalls on steady = 8.9% longer makespan (6485 vs 5955
+   steps) and cannot prefix-share (higher peak footprint, tested).
+2. **Two levers, same destination**: at bt=128 (the derived PIM-natural
+   size) every allocator converges to 0.963. So the design recommendation
+   has two forms: use 128-token blocks, OR keep 16 and allocate
+   alignment-aware. The second preserves paging's granularity benefits.
+3. **spec is adversarial exactly as hypothesized — and it dents the fix.**
+   Paged drops slightly (0.756), but pim-aware degrades to 0.879 at bt=16
+   (seed-stable: 0.877 at seed 1): branch-tail churn punches holes in
+   frames, adopted CoW copies land at hole offsets in *other* frames, so
+   consecutive logical blocks straddle frames more often. The dip is
+   centered at bt=16 (0.956 at bt=4, 0.929 at bt=8, 0.943 at bt=64) —
+   at small bt the tail region is a tiny fraction of the sequence; at large
+   bt rounds rarely cross block boundaries; bt=16 maximizes
+   churn-per-KV-byte with W=4/D=3. Hypothesis logged, not yet
+   root-cause-verified block-by-block. Spec CoW traffic itself: 12.6 GB
+   copied over the run (both paged and pim-aware); contiguous instead
+   copies accepted tokens (1.08 GB) — cheaper in bytes but needs the
+   8.9%-makespan-class reservation regime.
+4. **longctx barely suffers under ANY allocator** (paged 0.963/2823):
+   a 20k-token prompt allocates hundreds of blocks in one prefill burst,
+   which even a LIFO free list serves in long runs; decode growth is a
+   rounding error of the context. The paged penalty is a *churn* phenomenon
+   (steady/spec), not a length phenomenon.
+5. Prefix sharing helps the paged baseline (0.893 vs 0.769 steady): the
+   shared prompt is allocated once, early, compactly, and reused by 70% of
+   requests.
+
+Remaining gap to ideal (2805 vs 3810 GB/s = 74%): the 1−1/cols_per_row
+row-ACT floor (0.969 ceiling → timing factor ~0.77 at nRC/nCCD=10.5), not
+placement. A PIM controller with cross-row-group pipelining would close it;
+out of scope, noted for the writeup.

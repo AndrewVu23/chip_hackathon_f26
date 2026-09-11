@@ -1,0 +1,46 @@
+# Phase A — credibility sweeps. Answers four reviewer objections with
+# compute only (no new modeling). All on hbm3-pim + realistic host map.
+#
+# A1 seed variance   : do the Phase 2 curves survive 3 seeds?
+# A2 in-order        : does the 64-burst reorder-window assumption carry the
+#                      result, or does it hold with NO controller reordering?
+# A3 pool headroom   : is contiguous's admission-stall penalty an artifact of
+#                      the 1.3x auto-sizing?
+# A4 offered load    : does the paged<->pim-aware gap widen under pressure?
+#                      (proxy for the preemption we have not modeled)
+
+common:
+  dram: hbm3-pim
+  addrmap: host-cacheline
+  requests: 1000
+  max_batch: 64
+
+cells:
+  # A1 — three seeds over a trimmed block-size grid (curves are smooth, so
+  # four representative sizes carry the same variance claim as seven).
+  - workloads: [steady, spec]
+    allocators: [paged, pim-aware, contiguous]
+    block_tokens: [4, 16, 64, 128]
+    seeds: [0, 1, 2]
+
+  # A2 — same grid, strictly in-order coalescing (pessimistic endpoint).
+  - workloads: [steady, spec]
+    allocators: [paged, pim-aware, contiguous]
+    block_tokens: [4, 16, 64, 128]
+    coalesce_modes: [inorder]
+    seeds: [0]
+
+  # A3 — pool headroom sensitivity (1.3 duplicates an A1 cell; identical and
+  # deterministic, so it collapses on de-duplication).
+  - workloads: [steady]
+    allocators: [paged, pim-aware, contiguous]
+    block_tokens: [16]
+    headrooms: [1.1, 1.3, 1.6, 2.0]
+    seeds: [0]
+
+  # A4 — offered load. steady's default arrival rate is 0.25/step.
+  - workloads: [steady]
+    allocators: [paged, pim-aware, contiguous]
+    block_tokens: [16]
+    arrival_rates: [0.5, 1.0]
+    seeds: [0]

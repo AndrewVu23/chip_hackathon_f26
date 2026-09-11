@@ -23,7 +23,7 @@ import yaml
 
 from .addrmap import AddrMap
 from .allocator import make_allocator
-from .config import DEFAULT_TIMING, DRAM_PRESETS, MODEL_PRESETS
+from .config import DEFAULT_TIMING, DRAM_PRESETS, MODEL_PRESETS, shard_kv
 from .run import frame_blocks_for
 from .sim import SpecParams, auto_pool_blocks, simulate
 from .workload import WORKLOADS
@@ -34,27 +34,34 @@ def _run_cell(job: dict) -> dict:
     out_dir = Path(job["out_dir"])
     wkw = job.get("workload_kwargs") or {}
     tag = "".join(f"_{k[:2]}{v}" for k, v in sorted(wkw.items()))
+    for k, short in (("headroom", "hr"), ("kv_shards", "sh"),
+                     ("coalesce", "cm")):
+        if job.get(k) != DEFAULTS[k]:
+            tag += f"_{short}{job[k]}"
     name = (f"{job['workload']}_{job['allocator']}_{job['addrmap']}"
             f"_bt{job['block_tokens']}{tag}_s{job['seed']}")
     csv_path = out_dir / f"{name}.csv"
-    geom = DRAM_PRESETS[job["dram"]]
-    shape = MODEL_PRESETS[job["model"]]
+    geom, shape = shard_kv(DRAM_PRESETS[job["dram"]],
+                           MODEL_PRESETS[job["model"]], job["kv_shards"])
     bt = job["block_tokens"]
     am = AddrMap(geom, job["addrmap"])
     requests = WORKLOADS[job["workload"]](job["requests"], job["seed"], **wkw)
-    pool = job.get("pool_blocks") or auto_pool_blocks(requests, bt,
-                                                      job["max_batch"])
-    fb = (frame_blocks_for(geom, shape, bt)
-          if job["allocator"] == "pim-aware" else 1)
+    pool = job.get("pool_blocks") or auto_pool_blocks(
+        requests, bt, job["max_batch"], headroom=job["headroom"])
+    # the alignment frame is a property of the geometry: the allocator uses
+    # it for placement only when it is pim-aware, but every policy is
+    # DIAGNOSED against it.
+    fb = frame_blocks_for(geom, shape, bt)
     alloc = make_allocator(job["allocator"], pool, job["seed"],
-                           frame_blocks=fb)
+                           frame_blocks=fb if job["allocator"] == "pim-aware"
+                           else 1)
     spec = SpecParams() if job["workload"] == "spec" else None
     res = simulate(requests, alloc, geom, shape, am, block_tokens=bt,
                    max_batch=job["max_batch"],
                    sample_every=job["sample_every"],
                    sample_seqs=job["sample_seqs"], window=job["window"],
                    mode=job["coalesce"], timing=DEFAULT_TIMING,
-                   seed=job["seed"], spec=spec)
+                   seed=job["seed"], frame_blocks=fb, spec=spec)
     res.df.to_csv(csv_path, index=False, float_format="%.8g")
     meta = dict(config={k: v for k, v in job.items() if k != "out_dir"},
                 summary={k: v for k, v in res.summary.items()
@@ -63,7 +70,9 @@ def _run_cell(job: dict) -> dict:
         json.dumps(meta, indent=2, sort_keys=True) + "\n")
     row = dict(workload=job["workload"], allocator=job["allocator"],
                addrmap=job["addrmap"], block_tokens=bt, seed=job["seed"],
-               csv=str(csv_path), **{k: v for k, v in wkw.items()})
+               headroom=job["headroom"], kv_shards=job["kv_shards"],
+               coalesce=job["coalesce"], csv=str(csv_path),
+               **{k: v for k, v in wkw.items()})
     row.update({k: v for k, v in res.summary.items() if k != "runtime_s"})
     print(f"  done {name}: M1 {res.summary['m1_mean']:.3f}  "
           f"M3 {res.summary['m3_gbps_mean']:.0f} GB/s  "
@@ -74,7 +83,20 @@ def _run_cell(job: dict) -> dict:
 DEFAULTS = dict(dram="hbm3-pim", addrmap="host-cacheline",
                 model="llama-gqa-8kv", requests=1000, max_batch=64,
                 sample_every=16, sample_seqs=8, window=64,
-                coalesce="window", pool_blocks=0)
+                coalesce="window", pool_blocks=0, headroom=1.3,
+                kv_shards=1)
+
+# cell key -> (job/workload-kwarg key, goes into workload_kwargs?)
+AXES = {
+    "block_tokens": ("block_tokens", False),
+    "seeds": ("seed", False),
+    "headrooms": ("headroom", False),
+    "kv_shards": ("kv_shards", False),
+    "coalesce_modes": ("coalesce", False),
+    "addrmaps": ("addrmap", False),
+    "prompt_lens": ("prompt_len", True),
+    "arrival_rates": ("arrival_rate", True),
+}
 
 
 def expand(config: dict, out_dir: Path) -> list[dict]:
@@ -82,17 +104,26 @@ def expand(config: dict, out_dir: Path) -> list[dict]:
     jobs = []
     for cell in config["cells"]:
         base = dict(common, **{k: v for k, v in cell.items()
-                               if k not in ("workloads", "allocators",
-                                            "block_tokens", "seeds",
-                                            "prompt_lens")})
-        for wl, al, bt, seed, pl in itertools.product(
+                               if k not in AXES and k not in
+                               ("workloads", "allocators")})
+        axis_names = [a for a in AXES if a in cell]
+        axis_values = [cell[a] for a in axis_names]
+        for wl, al, combo in itertools.product(
                 cell["workloads"], cell["allocators"],
-                cell.get("block_tokens", [16]), cell.get("seeds", [0]),
-                cell.get("prompt_lens", [None])):
+                itertools.product(*axis_values) if axis_values else [()]):
             job = dict(base, workload=wl, allocator=al,
-                       block_tokens=bt, seed=seed, out_dir=str(out_dir))
-            if pl is not None:
-                job["workload_kwargs"] = {"prompt_len": pl}
+                       out_dir=str(out_dir))
+            job.setdefault("block_tokens", 16)
+            job.setdefault("seed", 0)
+            wkw = dict(job.get("workload_kwargs") or {})
+            for axis, val in zip(axis_names, combo):
+                key, is_wkw = AXES[axis]
+                if is_wkw:
+                    wkw[key] = val
+                else:
+                    job[key] = val
+            if wkw:
+                job["workload_kwargs"] = wkw
             jobs.append(job)
     return jobs
 

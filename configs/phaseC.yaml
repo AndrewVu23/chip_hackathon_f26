@@ -1,0 +1,25 @@
+# Phase C — does the finding survive KV-head sharding across channels?
+#
+# The biggest reviewer objection to Phases 0-2: we byte-interleaved the KV
+# cache over all 32 channels, but real PIM-attention designs assign KV heads
+# to channel groups. config.shard_kv models N independent all-bank domains,
+# each owning channels/N channels and kv_heads/N heads.
+#
+# Prediction: the per-channel block slice is invariant under proportional
+# sharding (rowgroup_bytes and kv_bytes_per_token both scale by 1/N), so M1
+# and M2 should hold roughly constant while M3 scales down with channel
+# count (less hardware). If instead the paged<->pim-aware gap CLOSES at
+# higher N, the premise is regime-specific and the framing must narrow.
+
+common:
+  dram: hbm3-pim
+  addrmap: host-cacheline
+  requests: 500
+  max_batch: 64
+
+cells:
+  - workloads: [steady, spec]
+    allocators: [paged, pim-aware, contiguous]
+    block_tokens: [16]
+    kv_shards: [1, 2, 4, 8]
+    seeds: [0]

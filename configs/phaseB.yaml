@@ -1,0 +1,27 @@
+# Phase B — is the spec dip a PimAware BUG or a real fragmentation finding?
+#
+# Measures block-table structure directly (blk_adj / same_frame /
+# frame_spread from sim.placement_diagnostics), so the answer does not
+# depend on the DRAM model at all. Every allocator is diagnosed against the
+# same geometric frame.
+#
+# Prediction if it is a real finding: pim-aware/spec shows same_frame well
+# below pim-aware/steady, with frame_spread > 1 (sequences smeared across
+# more frames than they need) — branch churn fragmenting frames.
+# Prediction if it is the fallback-path bug: frame_spread blows up far
+# beyond what churn alone would explain, and grows with run length.
+#
+# Small request count on purpose: these are structural per-sample measures,
+# averaged over thousands of samples; they converge fast.
+
+common:
+  dram: hbm3-pim
+  addrmap: host-cacheline
+  requests: 400
+  max_batch: 64
+
+cells:
+  - workloads: [steady, spec]
+    allocators: [paged, pim-aware]
+    block_tokens: [4, 16, 64]
+    seeds: [0]

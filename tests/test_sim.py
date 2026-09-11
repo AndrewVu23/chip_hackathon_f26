@@ -163,3 +163,53 @@ def test_pim_aware_spec_still_aligned():
                  spec=SpecParams(), check_every=1)
     pg = _run_wl(reqs, "paged", "host-cacheline", spec=SpecParams())
     assert pa.summary["m1_mean"] > pg.summary["m1_mean"]
+
+
+# ------------------------------- Phase B: placement diagnostics
+
+from pimkv.sim import placement_diagnostics
+
+
+def test_placement_diagnostics_perfect_and_scattered():
+    perfect = list(range(16))          # one frame of 8, then the next
+    d = placement_diagnostics(perfect, frame_blocks=8)
+    assert d["blk_adj"] == 1.0
+    assert d["same_frame"] == pytest.approx(14 / 15)   # one frame crossing
+    assert d["frame_spread"] == 1.0
+
+    # same 16 blocks smeared one-per-frame: worst case
+    smeared = [i * 8 for i in range(16)]
+    d = placement_diagnostics(smeared, frame_blocks=8)
+    assert d["blk_adj"] == 0.0
+    assert d["same_frame"] == 0.0
+    assert d["frame_spread"] == 8.0                    # 16 frames vs 2 needed
+
+
+def test_placement_diagnostics_degenerate():
+    d = placement_diagnostics([5], frame_blocks=8)
+    assert np.isnan(d["blk_adj"])
+    d = placement_diagnostics([1, 2, 3], frame_blocks=1)
+    assert d["blk_adj"] == 1.0 and np.isnan(d["same_frame"])
+
+
+# ------------------------------- Phase C: KV-head sharding
+
+from pimkv.config import shard_kv
+
+
+def test_shard_kv_preserves_per_channel_slice():
+    """Proportional sharding scales rowgroup bytes and kv bytes/token by the
+    same factor, so the alignment ratio a block sees is invariant."""
+    g1, s1 = shard_kv(GEOM, SHAPE, 1)
+    ratio1 = (g1.rowgroup_bytes * g1.channels) / (16 * s1.kv_bytes_per_token)
+    for n in (2, 4, 8):
+        g, s = shard_kv(GEOM, SHAPE, n)
+        assert g.channels == GEOM.channels // n
+        assert s.kv_heads == SHAPE.kv_heads // n
+        ratio = (g.rowgroup_bytes * g.channels) / (16 * s.kv_bytes_per_token)
+        assert ratio == pytest.approx(ratio1)
+
+
+def test_shard_kv_rejects_indivisible():
+    with pytest.raises(ValueError):
+        shard_kv(GEOM, SHAPE, 16)      # 8 kv_heads cannot split 16 ways

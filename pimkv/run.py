@@ -19,7 +19,7 @@ from pathlib import Path
 from .addrmap import AddrMap, SCHEMES
 from .allocator import ALLOCATORS, make_allocator
 from .config import (DEFAULT_TIMING, DRAM_PRESETS, MODEL_PRESETS,
-                     derive_block_tokens)
+                     derive_block_tokens, shard_kv)
 from .sim import SpecParams, auto_pool_blocks, simulate
 from .workload import WORKLOADS
 
@@ -64,6 +64,11 @@ def build_parser() -> argparse.ArgumentParser:
                    help="measure metrics every N decode steps")
     p.add_argument("--sample-seqs", type=int, default=8,
                    help="sequences measured per sampled step")
+    p.add_argument("--kv-shards", type=int, default=1,
+                   help="model KV-head sharding: split the cache into N "
+                        "independent all-bank domains, each owning "
+                        "channels/N channels and kv_heads/N heads "
+                        "(config.shard_kv). 1 = fully interleaved")
     p.add_argument("--spec-width", type=int, default=4,
                    help="spec workload: draft branches per round (W)")
     p.add_argument("--spec-depth", type=int, default=3,
@@ -84,17 +89,19 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    geom = DRAM_PRESETS[args.dram]
-    shape = MODEL_PRESETS[args.model]
+    geom, shape = shard_kv(DRAM_PRESETS[args.dram],
+                           MODEL_PRESETS[args.model], args.kv_shards)
     block_tokens = args.block_tokens or derive_block_tokens(geom, shape)
     am = AddrMap(geom, args.addrmap)
     requests = WORKLOADS[args.workload](args.requests, args.seed)
     pool_blocks = args.pool_blocks or auto_pool_blocks(
         requests, block_tokens, args.max_batch)
-    fb = (frame_blocks_for(geom, shape, block_tokens)
-          if args.allocator == "pim-aware" else 1)
+    # geometry property: used for placement only by pim-aware, but every
+    # policy is diagnosed against it
+    fb = frame_blocks_for(geom, shape, block_tokens)
     alloc = make_allocator(args.allocator, pool_blocks, args.seed,
-                           frame_blocks=fb)
+                           frame_blocks=fb if args.allocator == "pim-aware"
+                           else 1)
     spec = (SpecParams(width=args.spec_width, depth=args.spec_depth,
                        accept=args.spec_accept)
             if args.workload == "spec" else None)
@@ -104,7 +111,7 @@ def main(argv: list[str] | None = None) -> int:
                    sample_every=args.sample_every,
                    sample_seqs=args.sample_seqs, window=args.window,
                    mode=args.coalesce, timing=DEFAULT_TIMING, seed=args.seed,
-                   spec=spec)
+                   frame_blocks=fb, spec=spec)
 
     config = dict(vars(args), out=str(args.out) if args.out else None,
                   block_tokens_effective=block_tokens,
@@ -141,6 +148,9 @@ def main(argv: list[str] | None = None) -> int:
               f"spec_stalls={s['spec_stalls']}  "
               f"copied={s['copied_bytes']/1e6:.1f} MB  "
               f"phys_allocs={s['blocks_allocated_total']}")
+    print(f"placement            blk_adj={s['blk_adj_mean']:.3f}  "
+          f"same_frame={s['same_frame_mean']:.3f}  "
+          f"frame_spread={s['frame_spread_mean']:.2f}  (frame={fb} blocks)")
     print(f"M4 decode latency    mean={s['m4_ns_mean']:.0f} ns  "
           f"p95={s['m4_ns_p95']:.0f} ns")
     print(f"runtime {s['runtime_s']:.1f}s")

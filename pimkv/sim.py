@@ -90,9 +90,39 @@ def auto_pool_blocks(requests: list[Request], block_tokens: int,
                                                 block_tokens))
 
 
+def placement_diagnostics(table: list[int], frame_blocks: int) -> dict:
+    """Structural quality of a block table, independent of the DRAM map.
+
+    ``frame_blocks`` is the alignment quantum in blocks (one row index across
+    every bank of every channel) and is a property of the GEOMETRY, not of
+    the allocator — so every policy is measured on the same yardstick.
+
+    blk_adj      fraction of consecutive logical block pairs that are also
+                 physically adjacent (b[i+1] == b[i] + 1).
+    same_frame   fraction of consecutive pairs inside one alignment frame.
+    frame_spread frames actually touched / minimum frames needed. 1.0 means
+                 perfect packing; 2.0 means the sequence is smeared over
+                 twice as many frames as its size requires.
+    """
+    b = np.asarray(table, dtype=np.int64)
+    if b.size < 2:
+        return dict(blk_adj=float("nan"), same_frame=float("nan"),
+                    frame_spread=float("nan"))
+    d = np.diff(b)
+    out = dict(blk_adj=float(np.mean(d == 1)),
+               same_frame=float("nan"), frame_spread=float("nan"))
+    if frame_blocks > 1:
+        fr = b // frame_blocks
+        out["same_frame"] = float(np.mean(np.diff(fr) == 0))
+        out["frame_spread"] = (len(np.unique(fr))
+                               / _ceil_div(b.size, frame_blocks))
+    return out
+
+
 def measure_seq(seq: SeqState, table: list[int], am: AddrMap,
                 geom: DramGeometry, shape: ModelShape, timing: PimTiming,
-                block_tokens: int, window: int, mode: str) -> dict:
+                block_tokens: int, window: int, mode: str,
+                frame_blocks: int = 1) -> dict:
     bpt = shape.kv_bytes_per_token // geom.burst_bytes
     bpb = block_tokens * bpt
     n_bursts = seq.length * bpt
@@ -103,10 +133,12 @@ def measure_seq(seq: SeqState, table: list[int], am: AddrMap,
     s = sequence_metrics(m.ch, m.bank, m.ro, geom, window=window, mode=mode)
     kv_bytes = seq.length * shape.kv_bytes_per_token
     m3 = effective_bandwidth_gbps(s.m1, s.m2, geom, timing)
-    return dict(seq_id=seq.rid, seq_len=seq.length, kv_bytes=kv_bytes,
-                n_bursts=s.n_bursts, n_cmds=s.n_cmds, n_hits=s.n_hits,
-                m1=s.m1, m2=s.m2, m3_gbps=m3,
-                m4_ns=decode_latency_ns(kv_bytes, m3))
+    row = dict(seq_id=seq.rid, seq_len=seq.length, kv_bytes=kv_bytes,
+               n_bursts=s.n_bursts, n_cmds=s.n_cmds, n_hits=s.n_hits,
+               m1=s.m1, m2=s.m2, m3_gbps=m3,
+               m4_ns=decode_latency_ns(kv_bytes, m3))
+    row.update(placement_diagnostics(table, frame_blocks))
+    return row
 
 
 def simulate(requests: list[Request], alloc: KVAllocator, geom: DramGeometry,
@@ -114,7 +146,7 @@ def simulate(requests: list[Request], alloc: KVAllocator, geom: DramGeometry,
              max_batch: int = 64, sample_every: int = 16,
              sample_seqs: int = 8, window: int = 64, mode: str = "window",
              timing: PimTiming = DEFAULT_TIMING, seed: int = 0,
-             check_every: int = 64,
+             check_every: int = 64, frame_blocks: int = 1,
              spec: SpecParams | None = None) -> SimResult:
     if shape.kv_bytes_per_token % geom.burst_bytes:
         raise ValueError("kv_bytes_per_token must be a multiple of burst_bytes")
@@ -271,7 +303,7 @@ def simulate(requests: list[Request], alloc: KVAllocator, geom: DramGeometry,
             for j in sorted(pick.tolist()):
                 s = active[ids[j]]
                 row = measure_seq(s, alloc.get_table(s.rid), am, geom, shape,
-                                  timing, bt, window, mode)
+                                  timing, bt, window, mode, frame_blocks)
                 row.update(step=t, live_blocks=alloc.num_live,
                            free_blocks=alloc.num_free)
                 rows.append(row)
@@ -292,8 +324,8 @@ def simulate(requests: list[Request], alloc: KVAllocator, geom: DramGeometry,
     alloc.assert_conservation()
 
     cols = ["step", "seq_id", "seq_len", "kv_bytes", "n_bursts", "n_cmds",
-            "n_hits", "m1", "m2", "m3_gbps", "m4_ns", "live_blocks",
-            "free_blocks"]
+            "n_hits", "m1", "m2", "m3_gbps", "m4_ns", "blk_adj",
+            "same_frame", "frame_spread", "live_blocks", "free_blocks"]
     df = pd.DataFrame(rows, columns=cols)
     q = (lambda c, p: float(np.percentile(df[c], p)) if len(df) else float("nan"))
     summary = dict(
@@ -313,6 +345,11 @@ def simulate(requests: list[Request], alloc: KVAllocator, geom: DramGeometry,
         m3_gbps_mean=float(df.m3_gbps.mean()) if len(df) else float("nan"),
         m4_ns_mean=float(df.m4_ns.mean()) if len(df) else float("nan"),
         m4_ns_p95=q("m4_ns", 95),
+        blk_adj_mean=float(df.blk_adj.mean()) if len(df) else float("nan"),
+        same_frame_mean=(float(df.same_frame.mean()) if len(df)
+                         else float("nan")),
+        frame_spread_mean=(float(df.frame_spread.mean()) if len(df)
+                           else float("nan")),
         runtime_s=time.perf_counter() - t0,
     )
     return SimResult(df=df, summary=summary)

@@ -266,3 +266,60 @@ of the cache (short contexts, small blocks); long prompts are laid down in
 one prefill burst and stay compact. Together with the headline figure this
 is the design envelope: PIM-aware allocation matters most for
 short/medium-context, high-churn serving — which is the common case.
+
+## 2026-09-11 — PHASE B: spec dip diagnosed (design omission, not artifact)
+
+Added `sim.placement_diagnostics`: blk_adj (consecutive logical blocks that
+are also physically adjacent), same_frame (consecutive pairs inside one
+alignment frame), frame_spread (frames touched / frames needed; 1.0 =
+perfect packing). These are STRUCTURAL — no DRAM model involved — and every
+allocator is diagnosed against the same geometric frame, so paged and
+pim-aware are on one yardstick. Config: configs/phaseB.yaml, 400 requests,
+host-cacheline, results/phaseB/.
+
+| wl | alloc | bt | M1 | blk_adj | same_frame | frame_spread |
+|---|---|--:|--:|--:|--:|--:|
+| steady | pim-aware | 4  | 0.963 | 0.980 | 0.975 | 1.000 |
+| steady | pim-aware | 16 | 0.963 | 0.921 | 0.898 | 1.000 |
+| steady | pim-aware | 64 | 0.963 | 0.648 | 0.561 | 1.000 |
+| spec   | pim-aware | 4  | 0.956 | 0.572 | 0.960 | 1.410 |
+| spec   | pim-aware | 16 | 0.881 | 0.487 | 0.556 | 3.269 |
+| spec   | pim-aware | 64 | 0.943 | 0.235 | 0.200 | 1.540 |
+| steady | paged     | 16 | 0.794 | 0.069 | 0.194 | 5.413 |
+| spec   | paged     | 16 | 0.765 | 0.026 | 0.075 | 5.752 |
+| steady | paged     | 4  | 0.585 | 0.072 | 0.229 | 16.344 |
+
+Read same_frame relative to the frame size G = 512 KB / (bt x 4096 B):
+G = 32/8/2 blocks at bt = 4/16/64, so the structural ceiling on same_frame
+is (G-1)/G = 0.969/0.875/0.500. **pim-aware on steady sits at that ceiling
+for every block size, with frame_spread exactly 1.000** — the allocator is
+doing precisely what it was designed to do.
+
+**Diagnosis of the spec dip.** `PimAware.alloc_scratch` inherits the base
+implementation, which allocates from the SEQUENCE'S OWN frame via
+`_pick_frame(seq_id)`. There is no notion that speculative scratch is
+transient. Per round at bt=16: 4 branch tails x 1 block = 4 blocks claimed
+from an 8-block frame, 3 freed on adoption. Frames therefore never present
+as empty, `_pick_frame` falls through to the global "partial frame with the
+most free slots" path, sequences get smeared AND intermixed, and
+frame_spread goes 1.000 -> 3.269.
+
+Why bt=16 is the worst point (the dip is centered, not monotonic): at bt=4,
+G=32 so 4 blocks of churn is a small fraction of a frame (spread 1.41); at
+bt=64 a block is 256 KB = half a row-group and self-aligns regardless
+(spread 1.54, M1 0.943 despite same_frame 0.200); bt=16 is the crossover
+where per-round churn is half the frame capacity while blocks are still too
+small to align on their own.
+
+So: **a design omission with a known fix**, not a measurement artifact and
+not a bug in the fallback path (the fallback is the symptom; steady never
+reaches it, spread 1.000). Proposed Phase B2 (~40 lines, NOT implemented —
+owner decision): give speculative scratch its own frame pool keyed
+separately from the sequence, so drafts never fragment committed frames.
+Prediction: spec/bt16 M1 recovers from 0.881 toward ~0.96.
+
+**Independent bonus finding.** The paged baseline's blk_adj is 0.03-0.07:
+vLLM's LIFO free list yields almost NO physically adjacent consecutive
+blocks under churn, at frame_spread 5.4-16.3. This confirms the project's
+core thesis structurally, without relying on the analytical DRAM model at
+all — a stronger form of the argument than M1 alone.

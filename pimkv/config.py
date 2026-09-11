@@ -8,7 +8,7 @@ Units convention: bytes for sizes, nanoseconds for times.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 
 def _is_pow2(x: int) -> bool:
@@ -165,6 +165,39 @@ LLAMA_GQA_8KV = ModelShape(name="llama-gqa-8kv", kv_heads=8, head_dim=128)
 MODEL_PRESETS: dict[str, ModelShape] = {
     "llama-gqa-8kv": LLAMA_GQA_8KV,
 }
+
+
+def shard_kv(geom: DramGeometry, shape: ModelShape, n_shards: int
+             ) -> tuple[DramGeometry, ModelShape]:
+    """Model KV-head sharding across channels (Phase C robustness axis).
+
+    Published PIM-attention designs do not byte-interleave the KV cache over
+    every channel; they assign KV heads to channel groups, so one all-bank
+    domain owns a subset of heads AND a subset of channels. With ``n_shards``
+    such domains, shard g owns ``channels/n_shards`` channels and
+    ``kv_heads/n_shards`` heads, and is a self-contained all-bank system with
+    unchanged bank/row geometry. Every shard sees the same block table (the
+    allocator's placement decisions are shard-invariant), so simulating one
+    shard characterizes all of them.
+
+    Returns the effective (geometry, shape) for one shard. n_shards=1 is the
+    fully-interleaved baseline used in Phases 0-2.
+
+    Note the per-channel block slice is invariant under proportional
+    sharding (both rowgroup_bytes and kv_bytes_per_token scale by
+    1/n_shards), so this sweep tests exactly that prediction rather than
+    assuming it.
+    """
+    if n_shards == 1:
+        return geom, shape
+    if geom.channels % n_shards or shape.kv_heads % n_shards:
+        raise ValueError(f"n_shards={n_shards} must divide channels "
+                         f"({geom.channels}) and kv_heads ({shape.kv_heads})")
+    g = replace(geom, name=f"{geom.name}-s{n_shards}",
+                channels=geom.channels // n_shards)
+    s = replace(shape, name=f"{shape.name}-s{n_shards}",
+                kv_heads=shape.kv_heads // n_shards)
+    return g, s
 
 
 def derive_block_tokens(geom: DramGeometry, shape: ModelShape,

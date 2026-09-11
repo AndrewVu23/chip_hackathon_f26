@@ -1,0 +1,370 @@
+<title>Paged for Capacity, Punished by Rows</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{
+    color-scheme: light;
+    --ground:#F7F8FA;
+    --paper:#FFFFFF;
+    --ink:#0E1116;
+    --ink-2:#464F5D;
+    --ink-3:#78828F;
+    --rule:#DCE2EA;
+    --rule-soft:#E9EDF2;
+    --paged:#2A78D6;
+    --fix:#D4541F;
+    --oracle:#0F8F63;
+    --wash:#EEF3FB;
+    --wash-fix:#FDF1EA;
+    --maxw:69ch;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--ground); color:var(--ink);
+    font-family:"IBM Plex Serif",Georgia,serif;
+    font-size:18px; line-height:1.72;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1120px;margin:0 auto;padding:0 28px 96px}
+  .col{max-width:var(--maxw)}
+  h1,h2,h3,.label,.statv,.tag,nav,figcaption .fnum,th{font-family:"IBM Plex Sans",system-ui,sans-serif}
+  .num,code,.mono{font-family:"IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
+
+  /* ---------- masthead ---------- */
+  header{border-bottom:1px solid var(--rule);padding:64px 0 34px;margin-bottom:44px}
+  .eyebrow{font-family:"IBM Plex Sans",sans-serif;font-size:12.5px;font-weight:600;
+    letter-spacing:.13em;text-transform:uppercase;color:var(--ink-3);margin:0 0 18px}
+  h1{font-size:clamp(34px,5.1vw,55px);line-height:1.05;font-weight:600;letter-spacing:-.022em;
+    margin:0 0 20px;text-wrap:balance;max-width:17ch}
+  .dek{font-size:21px;line-height:1.6;color:var(--ink-2);max-width:60ch;margin:0 0 30px}
+  .byline{font-family:"IBM Plex Sans",sans-serif;font-size:14px;color:var(--ink-3);margin:0}
+  .byline strong{color:var(--ink-2);font-weight:500}
+
+  /* ---------- headline stats ---------- */
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));
+    gap:1px;background:var(--rule);border:1px solid var(--rule);margin:34px 0 0}
+  .stat{background:var(--paper);padding:17px 19px}
+  .statv{font-size:29px;font-weight:600;letter-spacing:-.02em;line-height:1.1;
+    font-variant-numeric:tabular-nums}
+  .stat.a .statv{color:var(--fix)} .stat.b .statv{color:var(--paged)}
+  .statl{font-family:"IBM Plex Sans",sans-serif;font-size:12.5px;line-height:1.42;
+    color:var(--ink-3);margin-top:6px}
+
+  /* ---------- sections ---------- */
+  section{margin:0 0 8px;padding:38px 0 0}
+  h2{font-size:28px;font-weight:600;letter-spacing:-.017em;line-height:1.2;margin:0 0 6px;
+    text-wrap:balance;display:flex;gap:14px;align-items:baseline}
+  h2 .snum{font-size:13px;font-weight:600;color:var(--ink-3);letter-spacing:.08em;
+    font-variant-numeric:tabular-nums;flex:none;padding-top:3px}
+  h3{font-size:18.5px;font-weight:600;letter-spacing:-.005em;margin:34px 0 2px;color:var(--ink)}
+  p{margin:14px 0}
+  .lede{font-size:19.5px;color:var(--ink-2);margin-top:10px}
+  strong{font-weight:600}
+  em{font-style:italic}
+  .k{background:var(--wash);padding:.08em .34em;border-radius:2px;
+    font-family:"IBM Plex Mono",monospace;font-size:.87em;color:#1B4F96}
+  .kf{background:var(--wash-fix);color:#9C3A10}
+
+  /* ---------- figures ---------- */
+  figure{margin:34px 0;max-width:1000px}
+  figure img{width:100%;height:auto;display:block;border:1px solid var(--rule);background:var(--paper)}
+  figcaption{font-family:"IBM Plex Sans",sans-serif;font-size:14px;line-height:1.58;
+    color:var(--ink-2);margin-top:11px;max-width:76ch}
+  figcaption .fnum{font-weight:600;color:var(--ink);margin-right:7px}
+
+  /* ---------- tables ---------- */
+  .tw{overflow-x:auto;margin:24px 0;max-width:900px}
+  table{border-collapse:collapse;font-size:15px;width:100%;
+    font-family:"IBM Plex Sans",sans-serif;background:var(--paper)}
+  th,td{text-align:right;padding:9px 15px;border-bottom:1px solid var(--rule-soft);white-space:nowrap}
+  th:first-child,td:first-child{text-align:left}
+  thead th{font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;
+    color:var(--ink-3);border-bottom:1px solid var(--rule)}
+  tbody td{font-variant-numeric:tabular-nums;font-family:"IBM Plex Mono",monospace;font-size:14px}
+  tbody td:first-child{font-family:"IBM Plex Sans",sans-serif;font-size:14.5px}
+  tr.hl td{background:var(--wash-fix)}
+  caption{caption-side:bottom;text-align:left;font-family:"IBM Plex Sans",sans-serif;
+    font-size:13.5px;color:var(--ink-3);padding-top:10px;line-height:1.55}
+
+  /* ---------- callout ---------- */
+  .note{border-left:3px solid var(--fix);background:var(--paper);
+    padding:16px 20px;margin:26px 0;max-width:var(--maxw)}
+  .note p{margin:0;font-size:17px;line-height:1.62}
+  .note .label{display:block;font-size:11.5px;font-weight:600;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--fix);margin-bottom:6px}
+
+  /* ---------- limits list ---------- */
+  .limits{list-style:none;padding:0;margin:22px 0;max-width:var(--maxw)}
+  .limits li{border-top:1px solid var(--rule);padding:15px 0}
+  .limits li:last-child{border-bottom:1px solid var(--rule)}
+  .limits b{display:block;font-family:"IBM Plex Sans",sans-serif;font-size:15.5px;
+    font-weight:600;margin-bottom:3px}
+  .limits span{font-size:16.5px;color:var(--ink-2);line-height:1.6}
+
+  /* ---------- recommendation cards ---------- */
+  .recs{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:18px;margin:26px 0}
+  .rec{background:var(--paper);border:1px solid var(--rule);border-top:3px solid var(--fix);padding:20px}
+  .rec h4{font-family:"IBM Plex Sans",sans-serif;font-size:16px;font-weight:600;margin:0 0 8px}
+  .rec p{font-size:16px;margin:0;color:var(--ink-2);line-height:1.6}
+
+  footer{border-top:1px solid var(--rule);margin-top:58px;padding-top:26px;
+    font-family:"IBM Plex Sans",sans-serif;font-size:14px;color:var(--ink-3);line-height:1.7}
+  .diagram{background:var(--paper);border:1px solid var(--rule);padding:22px 20px 14px;margin:30px 0;max-width:1000px}
+  .diagram svg{width:100%;height:auto;display:block}
+  @media (max-width:640px){
+    body{font-size:17px}
+    .wrap{padding:0 18px 70px}
+    h2{flex-direction:column;gap:2px}
+  }
+</style>
+
+<div class="wrap">
+
+<header>
+  <p class="eyebrow">Memory-system study · In-memory computing</p>
+  <h1>Paged for Capacity, Punished by Rows</h1>
+  <p class="dek">Processing-in-memory accelerators make LLM decoding fast by computing inside DRAM — but only if the KV cache is laid out in aligned rows. The allocator that made LLM serving memory-efficient guarantees it isn't. Here is what that costs, and how to get it back.</p>
+  <p class="byline"><strong>Kiet Vu</strong> · Computer Engineering, Purdue University · Theme 4 — In-Memory Computing &amp; Compute-Near-Memory</p>
+
+  <div class="stats">
+    <div class="stat a"><div class="statv">2.3×</div><div class="statl">more effective PIM bandwidth at the standard 16-token block</div></div>
+    <div class="stat a"><div class="statv">6.5×</div><div class="statl">at 4-token blocks, where scattering is worst</div></div>
+    <div class="stat b"><div class="statv">6.9%</div><div class="statl">of a sequence's neighbouring blocks actually land next to each other today</div></div>
+    <div class="stat"><div class="statv">2</div><div class="statl">independent DRAM simulators agree with the model</div></div>
+  </div>
+</header>
+
+<section>
+<div class="col">
+<h2><span class="snum">01</span>The short version</h2>
+<p class="lede">Generating one token from an LLM means reading the model's entire memory of the conversation and doing very little arithmetic with it. That makes decoding a <em>bandwidth</em> problem, not a math problem.</p>
+<p>A promising fix is to stop moving the data at all: put small multiplier units inside the DRAM chips themselves and compute where the data already lives. Several published designs do exactly this. All of them depend on one hardware trick — activating the <em>same row</em> in every memory bank at once, then issuing a single command that makes all sixteen banks compute in parallel.</p>
+<p>That trick has a precondition: the data must physically sit at the same row index across all those banks. And the allocator every modern LLM server uses — PagedAttention, from vLLM — guarantees it does not. It hands out fixed-size blocks from a free list, wherever a block happens to be available.</p>
+<p>We built a simulator that replays realistic serving traffic through a faithful copy of vLLM's allocation policy, maps the resulting block addresses onto real DRAM geometry, and measures what an in-memory accelerator would actually achieve. The answer: today's allocator leaves roughly half the available bandwidth on the floor. A block allocator that understands DRAM rows recovers essentially all of it, at every block size, with no extra memory.</p>
+</div>
+</section>
+
+<section>
+<div class="col">
+<h2><span class="snum">02</span>Two good ideas that don't fit together</h2>
+
+<h3>Why in-memory computing wins</h3>
+<p>DRAM is organised into banks, and each bank into rows. To read anything, the chip first <em>activates</em> a row — copying it into a small buffer — and that activation is slow. Reading more data from an already-open row is fast; switching rows is expensive.</p>
+<p>An in-memory accelerator exploits this with <strong>all-bank operation</strong>. It opens the same row number in all sixteen banks of a channel simultaneously, then broadcasts one command. Every bank multiplies its own slice of data at the same time, so one command does sixteen banks' worth of work.</p>
+<p>The catch is in the words "the same row number". If the data you need in bank 0 is at row 900 but the data in bank 1 is at row 41, you cannot do this. You fall back to opening rows one at a time and pay the slow activation over and over.</p>
+</div>
+
+<div class="diagram">
+<svg viewBox="0 0 920 300" role="img" aria-label="Comparison of aligned all-bank layout versus scattered paged layout across four DRAM banks">
+  <text x="0" y="16" font-family="IBM Plex Sans, sans-serif" font-size="14" font-weight="600" fill="#0E1116">What the accelerator needs</text>
+  <text x="0" y="36" font-family="IBM Plex Sans, sans-serif" font-size="12.5" fill="#78828F">One row index, every bank — a single command computes on all four at once</text>
+  <g>
+    <rect x="0" y="50" width="400" height="86" fill="#FFFFFF" stroke="#DCE2EA"></rect>
+    <line x1="100" y1="50" x2="100" y2="136" stroke="#E9EDF2"></line>
+    <line x1="200" y1="50" x2="200" y2="136" stroke="#E9EDF2"></line>
+    <line x1="300" y1="50" x2="300" y2="136" stroke="#E9EDF2"></line>
+    <rect x="6" y="86" width="88" height="20" fill="#D4541F"></rect>
+    <rect x="106" y="86" width="88" height="20" fill="#D4541F"></rect>
+    <rect x="206" y="86" width="88" height="20" fill="#D4541F"></rect>
+    <rect x="306" y="86" width="88" height="20" fill="#D4541F"></rect>
+    <text x="50" y="146" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" fill="#78828F">bank 0</text>
+    <text x="150" y="146" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" fill="#78828F">bank 1</text>
+    <text x="250" y="146" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" fill="#78828F">bank 2</text>
+    <text x="350" y="146" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" fill="#78828F">bank 3</text>
+    <text x="410" y="100" font-family="IBM Plex Mono, monospace" font-size="11.5" fill="#D4541F">row 412 — all four</text>
+  </g>
+  <text x="0" y="196" font-family="IBM Plex Sans, sans-serif" font-size="14" font-weight="600" fill="#0E1116">What the paged allocator produces</text>
+  <text x="0" y="216" font-family="IBM Plex Sans, sans-serif" font-size="12.5" fill="#78828F">Four different rows — four separate slow activations, no parallelism</text>
+  <g>
+    <rect x="0" y="230" width="400" height="50" fill="#FFFFFF" stroke="#DCE2EA"></rect>
+    <line x1="100" y1="230" x2="100" y2="280" stroke="#E9EDF2"></line>
+    <line x1="200" y1="230" x2="200" y2="280" stroke="#E9EDF2"></line>
+    <line x1="300" y1="230" x2="300" y2="280" stroke="#E9EDF2"></line>
+    <rect x="6" y="236" width="88" height="12" fill="#2A78D6"></rect>
+    <rect x="106" y="262" width="88" height="12" fill="#2A78D6"></rect>
+    <rect x="206" y="248" width="88" height="12" fill="#2A78D6"></rect>
+    <rect x="306" y="268" width="88" height="12" fill="#2A78D6"></rect>
+    <text x="410" y="243" font-family="IBM Plex Mono, monospace" font-size="11" fill="#2A78D6">row 900</text>
+    <text x="410" y="272" font-family="IBM Plex Mono, monospace" font-size="11" fill="#2A78D6">row 41</text>
+    <text x="520" y="257" font-family="IBM Plex Mono, monospace" font-size="11" fill="#2A78D6">row 318</text>
+    <text x="520" y="278" font-family="IBM Plex Mono, monospace" font-size="11" fill="#2A78D6">row 7</text>
+  </g>
+  <g transform="translate(640,50)">
+    <text x="0" y="12" font-family="IBM Plex Sans, sans-serif" font-size="12.5" font-weight="600" fill="#0E1116">The size mismatch</text>
+    <text x="0" y="36" font-family="IBM Plex Mono, monospace" font-size="11.5" fill="#464F5D">one row-group  = 16 KB</text>
+    <text x="0" y="56" font-family="IBM Plex Mono, monospace" font-size="11.5" fill="#464F5D">16-token block =  2 KB</text>
+    <line x1="0" y1="68" x2="250" y2="68" stroke="#DCE2EA"></line>
+    <text x="0" y="90" font-family="IBM Plex Sans, sans-serif" font-size="12.5" fill="#78828F">A block covers one-eighth of</text>
+    <text x="0" y="108" font-family="IBM Plex Sans, sans-serif" font-size="12.5" fill="#78828F">what the hardware wants aligned,</text>
+    <text x="0" y="126" font-family="IBM Plex Sans, sans-serif" font-size="12.5" fill="#78828F">so eight consecutive blocks must</text>
+    <text x="0" y="144" font-family="IBM Plex Sans, sans-serif" font-size="12.5" fill="#78828F">land side by side. A free list</text>
+    <text x="0" y="162" font-family="IBM Plex Sans, sans-serif" font-size="12.5" fill="#78828F">has no reason to do that.</text>
+  </g>
+</svg>
+</div>
+
+<div class="col">
+<h3>Why paging exists, and why it scatters</h3>
+<p>PagedAttention solved a genuine problem. Before it, a server reserved enough contiguous memory for each request's worst-case length, and wasted most of it. Paging splits the cache into fixed 16-token blocks, hands them out on demand from a free list, and lets different requests share blocks. Memory waste dropped dramatically. It is the right design — for capacity.</p>
+<p>But blocks land wherever the free list happens to point. Sequences arrive, grow, finish, and return their blocks in whatever order they finish; the next request picks up those scraps. After a few minutes of real traffic the physical layout is confetti.</p>
+
+<div class="note">
+  <span class="label">The arithmetic that sets up the whole problem</span>
+  <p>On the HBM3-class geometry we model, one row index across all 16 banks of a channel holds <span class="num">16 KB</span>. A 16-token block, spread over the 32 channels, contributes only <span class="num">2 KB</span> to each one — <strong>one-eighth of a row-group</strong>. So eight consecutive blocks have to land adjacently before the accelerator gets one clean all-bank operation. Nothing in the allocator arranges that.</p>
+</div>
+</div>
+</section>
+
+<section>
+<div class="col">
+<h2><span class="snum">03</span>How we measured it</h2>
+<p>We deliberately did not run a language model. Nothing about this problem depends on what the model says — only on <em>when blocks are allocated and freed</em>. So we built a harness that isolates exactly that, and runs on a laptop in minutes with no GPU.</p>
+
+<h3>Four pieces</h3>
+<p><strong>A workload generator</strong> produces realistic request streams: steady chat-like traffic with long-tailed lengths, long-context requests, requests sharing a common system prompt, and tree-style speculative decoding, which forks and discards branches several times per token.</p>
+<p><strong>A faithful copy of vLLM's allocator.</strong> Rather than install a serving stack, we ported the allocation policy from vLLM's block manager — the free list, the block table, reference counting, copy-on-write on fork. It reproduces the real ordering behaviour, including the detail that vLLM's free list is last-in-first-out.</p>
+<p><strong>An address map</strong> turns each block's bytes into physical DRAM coordinates — channel, bank group, bank, row, column — under configurable interleaving schemes, so we can ask what different memory controllers would do with the same allocation decisions.</p>
+<p><strong>A model of all-bank execution</strong> walks a sequence's cache in order, groups the reads into all-bank commands, and reports four numbers: how often a command finds its row already open, how many banks actually participate, the resulting effective bandwidth, and the decode latency that implies.</p>
+
+<h3>Guardrails</h3>
+<p>Five checks run as tests on every change, and no number gets reported unless they pass. Two are anchors with known answers: a perfect contiguous layout must score near the theoretical ceiling, and a randomly scattered layout must score near the theoretical floor. The others enforce that results improve monotonically with block size, that identical seeds give byte-identical output, and that every block allocated is eventually accounted for. The suite is <span class="num">85</span> tests.</p>
+</div>
+</section>
+
+<section>
+<div class="col">
+<h2><span class="snum">04</span>What we found</h2>
+
+<h3>The layout is worse than "imperfect"</h3>
+<p>Before any DRAM modelling at all, you can just look at where blocks land. Under steady traffic with standard 16-token blocks, only <strong>6.9%</strong> of a sequence's neighbouring blocks are physically next to each other, and each sequence is smeared across <strong>5.4×</strong> more alignment regions than its size requires. The PIM-aware allocator puts <strong>92%</strong> of neighbours adjacent and uses exactly the minimum number of regions — a spread factor of 1.00.</p>
+<p>That comparison needs no timing model, no assumptions about the memory controller, and no debate. The layout modern serving produces is close to the worst case for this hardware.</p>
+</div>
+
+<figure>
+  <img src="headline.png" alt="Two stacked line charts. Top: row-hit rate versus block size for three allocators on steady and speculative workloads. Bottom: the same for effective bandwidth. The paged allocator rises from 0.54 to 0.96 as blocks grow from 4 to 128 tokens, while PIM-aware and contiguous stay flat near 0.96 throughout.">
+  <figcaption><span class="fnum">Figure 1</span>Row-hit rate (top) and effective bandwidth (bottom) against KV block size. Colour is the allocator; solid lines are steady traffic and dashed lines are speculative decoding. The PIM-aware allocator sits at the geometric ceiling for every block size and both workloads. The paged baseline only catches up at 128 tokens — the size the hardware's own geometry implies.</figcaption>
+</figure>
+
+<div class="col">
+<h3>Two levers reach the same place</h3>
+<p>At the standard 16-token block, the PIM-aware allocator raises the row-hit rate from <span class="num">0.769</span> to <span class="num">0.963</span> and effective bandwidth from <span class="num">1,226</span> to <span class="num">2,805 GB/s</span> — <strong>2.3×</strong>. At 4-token blocks the gap widens to <strong>6.5×</strong>. Under speculative decoding it is <strong>2.4×</strong>.</p>
+<p>But notice where all three curves meet. At <strong>128 tokens</strong> every allocator scores the same. That number is not tuned; it falls out of the hardware: row size × banks × channels ÷ bytes per token. A 128-token block is exactly one aligned region, so where you put it stops mattering.</p>
+<p>So there are two ways to fix this, and they are worth stating separately because they cost different things. Use 128-token blocks and the problem disappears without touching the allocator — but you give up the fine-grained packing that made paging attractive. Or keep 16-token blocks and make the allocator alignment-aware — you keep the packing and get the same result.</p>
+
+<div class="tw">
+<table>
+  <caption>Steady traffic, 16-token blocks, realistic host address map. Ideal all-bank bandwidth for this geometry is 3,810 GB/s.</caption>
+  <thead><tr><th>Allocator</th><th>Row-hit rate</th><th>Bandwidth</th><th>vs. paged</th><th>Extra memory</th></tr></thead>
+  <tbody>
+    <tr><td>Paged (vLLM policy)</td><td>0.769</td><td>1,226 GB/s</td><td>—</td><td>none</td></tr>
+    <tr class="hl"><td>PIM-aware</td><td>0.963</td><td>2,805 GB/s</td><td>2.29×</td><td>none</td></tr>
+    <tr><td>Contiguous (upper bound)</td><td>0.958</td><td>2,712 GB/s</td><td>2.21×</td><td>~2× pool</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>The contiguous row deserves a note. Giving every sequence one unbroken span is the obvious way to get alignment, and it does work — but only if you buy the memory for it. At the pool size we run, it stalls admissions <span class="num">3,343</span> times and finishes the same work <strong>9% slower</strong>. Grow the pool to twice the mean demand and those stalls vanish entirely. That is the trade paging was invented to avoid, and the PIM-aware allocator sidesteps it: it matches the contiguous layout's alignment while allocating exactly as much memory as the paged baseline.</p>
+</div>
+
+<figure>
+  <img src="bandwidth.png" alt="Grouped bar chart of effective bandwidth for four workloads. Steady and speculative decoding show large gaps between paged and the other two allocators; long-context shows almost none.">
+  <figcaption><span class="fnum">Figure 2</span>Effective bandwidth across all four workloads at 16-token blocks. Speculative decoding is the hardest case for the paged baseline (1,153 GB/s) and prefix sharing the gentlest (2,042 GB/s, because the shared prompt is allocated once, early, and compactly). Long-context traffic is nearly immune under every allocator.</figcaption>
+</figure>
+
+<div class="col">
+<h3>It's churn, not size</h3>
+<p>The long-context result is the one that reframes the problem. A 20,000-token prompt is allocated in a single burst at admission, and even a last-in-first-out free list hands out long adjacent runs when asked for hundreds of blocks at once. Those requests score <span class="num">0.963</span> under the plain paged allocator — essentially perfect.</p>
+<p>The damage comes from <em>growth and turnover</em>: sequences adding one block at a time while others finish and return theirs. So this is not a long-context problem. It is a busy-server problem, which is the condition production systems actually run in.</p>
+</div>
+
+<figure>
+  <img src="sweep_heatmap.png" alt="Heatmap of row-hit rate over block size and context length for the paged allocator, rising from 0.74 at small blocks and short contexts to 0.97 at large blocks or long contexts.">
+  <figcaption><span class="fnum">Figure 3</span>Row-hit rate for the paged allocator across block size and context length. The penalty concentrates in the lower-left corner — short contexts with small blocks — and disappears toward either edge. Everything above 0.95 is territory where the allocator does not matter.</figcaption>
+</figure>
+
+<div class="col">
+<h3>And it gets worse as models evolve</h3>
+<p>How much a block covers per channel depends on how many bytes each token stores, which depends on how many key/value heads the model has. Modern architectures have been cutting that number to save memory — from 32 heads down to 8 (grouped-query) and in some cases 1 (multi-query).</p>
+<p>Each cut makes this problem worse, because a block's slice of each channel shrinks with it. On an older 32-head model the paged allocator is already nearly fine and the fix buys <strong>1.2×</strong>. On today's 8-head models it buys <strong>2.1×</strong>. On a 1-head model it buys <strong>6.0×</strong>. The trend the field is following makes the mismatch more expensive, not less.</p>
+</div>
+
+<figure>
+  <img src="kvheads.png" alt="Grouped bar chart of row-hit rate for three model shapes. The paged allocator scores 0.56 for multi-query, 0.78 for grouped-query, and 0.94 for multi-head attention, while PIM-aware stays between 0.92 and 0.97.">
+  <figcaption><span class="fnum">Figure 4</span>The same experiment across three attention shapes. Fewer key/value heads means fewer bytes per token, a smaller slice of each memory channel per block, and a larger penalty for scattering it. The gains quoted under each group are in effective bandwidth.</figcaption>
+</figure>
+</section>
+
+<section>
+<div class="col">
+<h2><span class="snum">05</span>Does the model hold up?</h2>
+<p class="lede">Everything above comes from our own analytical model of all-bank execution. That model could be wrong. So we checked it against two independent cycle-level DRAM simulators, replaying the <em>same</em> block layouts our allocators actually produced.</p>
+
+<p><strong>Row behaviour.</strong> Ramulator 2 is a standard DRAM simulator with its own memory controller and its own request reordering. Feeding it our address streams, its measured row-hit fraction lands within <span class="num">0.003</span> of our predicted number for every sample — 0.795 against our 0.799 for paged, 0.963 against 0.964 for PIM-aware. The row-hit metric is not an artifact of how we chose to model things.</p>
+
+<p><strong>Bank parallelism.</strong> Stock DRAM simulators have no all-bank command, so they cannot test the second half of the model. The AttAcc project, an in-memory attention accelerator from ASPLOS 2024, publishes a Ramulator extension that <em>does</em> implement it — a real all-bank multiply-accumulate instruction. Its DRAM geometry matches ours exactly. We replayed our command streams through it as genuine all-bank instructions.</p>
+<p>The test isolates bank parallelism cleanly: run identical sequences under two memory interleaving schemes, one that keeps banks usable and one that cripples them. Our model predicts the crippled layout needs <strong>8.0× more all-bank commands</strong> for the same data. AttAcc measures <strong>7.4× and 7.3× more cycles</strong> for the two well-aligned allocators. The bank-parallelism term is real and quantitatively close.</p>
+</div>
+
+<figure>
+  <img src="validation.png" alt="Two panels. Left: relative throughput per allocator from the analytical model and from the AttAcc simulator, showing the same ordering. Right: predicted command ratio of 8.0 times against measured cycle ratios of 5.3 to 7.4 times.">
+  <figcaption><span class="fnum">Figure 5</span>Cross-validation against AttAcc's all-bank PIM simulator. Left: both the model and the simulator rank the allocators identically on the same sequences. Right: the predicted 8.0× command inflation against measured cycles. The paged bar is lower because its starting layout is already degraded, so it has less left to lose.</figcaption>
+</figure>
+
+<div class="note">
+  <span class="label">One calibration worth stating plainly</span>
+  <p>Our bandwidth figures assume a row miss costs a full row cycle with no overlap, using the published ratio of roughly 10.5. A real PIM controller overlaps activation with useful work, and AttAcc's measurements imply an effective ratio closer to 4.4. The consequence: our <em>ratios</em> are optimistic by about 1.4× on the row-miss component. On AttAcc's timing the 2.3× headline becomes roughly <strong>1.6×</strong>. Every ordering, every crossover point, and every block-size conclusion is unchanged — but the honest headline number depends on which controller you assume.</p>
+</div>
+</section>
+
+<section>
+<div class="col">
+<h2><span class="snum">06</span>Where it doesn't help</h2>
+<p class="lede">A result is only useful if you know its edges. These are the conditions under which the gain shrinks or disappears, all measured rather than guessed.</p>
+
+<ul class="limits">
+  <li><b>When the memory pool is oversubscribed</b><span>Real servers evict and recompute sequences under memory pressure. When we model that faithfully and squeeze the pool to 60% of demand, roughly 200 evictions occur and re-admitted sequences land in whatever fragments remain. The advantage falls from 2.1× to <strong>1.38×</strong>. It never drops below the paged baseline, but the benefit clearly depends on having room to work in.</span></li>
+  <li><b>When the memory controller cannot reorder</b><span>Our headline assumes the controller can reorder requests within a modest window — standard for real hardware. With reordering removed entirely, the gain narrows from 2.3× to <strong>1.24×</strong>. The shape of every curve is identical; only the magnitude moves. The truth lies between these two bounds.</span></li>
+  <li><b>When contexts are long</b><span>Prompts of 8,000 tokens and up are allocated in one burst and are already well laid out. The plain paged allocator reaches 0.963 there. If your traffic is dominated by long prompts and little turnover, this work buys you almost nothing.</span></li>
+  <li><b>When the model has many KV heads</b><span>Older multi-head architectures store enough bytes per token that a 16-token block nearly fills an aligned region on its own. The gain there is <strong>1.2×</strong> — real, but not worth engineering effort.</span></li>
+  <li><b>What we did not simulate</b><span>We model vLLM's allocation <em>policy</em> rather than running vLLM, and we measure one representative transformer layer — block tables are shared across layers, so the placement pattern is identical in each. Absolute bandwidth figures remain analytical; the row-hit and bank-parallelism terms are both simulator-confirmed.</span></li>
+</ul>
+</div>
+
+<figure>
+  <img src="pressure.png" alt="Line chart of row-hit rate against pool headroom under realistic preemption. The PIM-aware line falls from 0.963 to 0.860 as headroom shrinks from 1.3 to 0.6, while the paged line stays flat near 0.78.">
+  <figcaption><span class="fnum">Figure 6</span>Behaviour under realistic eviction and recomputation. As the pool shrinks below demand, evictions rise and the PIM-aware advantage narrows — though it stays above the paged baseline throughout. Speculative decoding (dashed) is barely affected, because those sequences finish before pressure accumulates.</figcaption>
+</figure>
+</section>
+
+<section>
+<div class="col">
+<h2><span class="snum">07</span>What to do with this</h2>
+<p>The practical output is a block-size recommendation with a formula behind it, and an allocator design for teams who want to keep fine-grained paging.</p>
+
+<div class="recs">
+  <div class="rec">
+    <h4>Derive the block size, don't inherit it</h4>
+    <p>16 tokens is a serving-side convention with no hardware meaning. For a PIM-backed system the right value is row size × banks × channels ÷ bytes per token — <strong>128 tokens</strong> on the geometry here. At that size, placement stops mattering entirely.</p>
+  </div>
+  <div class="rec">
+    <h4>Or make the allocator row-aware</h4>
+    <p>Carve the pool into aligned regions, give each sequence its own, fill it in order, and return freed blocks to the region they came from. This reaches the same ceiling at <em>any</em> block size and costs no extra memory.</p>
+  </div>
+  <div class="rec">
+    <h4>Keep speculative scratch separate</h4>
+    <p>Speculative decoding allocates and discards draft branches constantly. Drawing those from a sequence's own region punches holes in it. Giving drafts their own scratch area keeps speculative traffic as fast as ordinary traffic.</p>
+  </div>
+  <div class="rec">
+    <h4>Leave headroom</h4>
+    <p>The benefit is largest when the pool is not oversubscribed. Below roughly 1× mean demand, eviction churn erodes alignment faster than any placement policy can restore it.</p>
+  </div>
+</div>
+
+<p>The broader point is about where this problem is best solved. The in-memory computing literature assumes a favourable data layout; the serving literature assumes memory is flat and placement is free. Each treats the other's hard part as someone else's concern. The measurements here suggest the cheapest place to reconcile them is the allocator — a few hundred lines, no hardware change, no extra memory, and no loss of the packing efficiency that made paging worth adopting.</p>
+</div>
+</section>
+
+<footer>
+  <p>All figures generated from the measurement harness described above; every run is reproducible from a single command with a fixed seed. Geometry: HBM3-class, 32 channels × 16 banks × 16,384 rows × 1 KB rows, modelling a grouped-query attention shape at 4 KB of key/value data per token. Cross-validation against Ramulator 2 and the AttAcc PIM extension.</p>
+</footer>
+
+</div>

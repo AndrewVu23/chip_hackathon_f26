@@ -264,3 +264,20 @@ def test_vllm_admission_rejects_contiguous():
     with pytest.raises(ValueError):
         simulate(reqs, _CO(500), GEOM, SHAPE, AddrMap(GEOM, "host-cacheline"),
                  block_tokens=16, admission="vllm")
+
+
+# ------------------------------- Phase E: trace emission (no Ramulator needed)
+
+def test_ramulator_trace_format(tmp_path):
+    from pimkv.ramulator import emit_trace, enumerate_bursts
+    am = AddrMap(GEOM, "host-cacheline")
+    m = enumerate_bursts([5, 9], 20, GEOM, SHAPE, 16, am)
+    n = emit_trace(m, tmp_path / "t.trace")
+    lines = (tmp_path / "t.trace").read_text().splitlines()
+    assert n == len(lines) == 20 * SHAPE.kv_bytes_per_token // GEOM.burst_bytes
+    op, vec = lines[0].split(" ")
+    f = [int(x) for x in vec.split(",")]
+    assert op == "R" and len(f) == 7
+    assert 0 <= f[0] < GEOM.channels // 2 and f[1] in (0, 1) and f[2] == 0
+    assert f[3] < GEOM.bank_groups and f[4] < GEOM.banks_per_group
+    assert f[5] < GEOM.rows_per_bank and f[6] % 8 == 0 and f[6] < 256

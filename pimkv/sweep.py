@@ -57,8 +57,10 @@ def _run_cell(job: dict) -> dict:
     alloc = make_allocator(job["allocator"], pool, job["seed"],
                            frame_blocks=fb if job["allocator"] == "pim-aware"
                            else 1, pim_scratch=job["pim_scratch"])
-    spec = (SpecParams(adopt=job["spec_adopt"])
-            if job["workload"] == "spec" else None)
+    adopt = job["spec_adopt"]
+    if adopt == "auto":   # B2: frame-aligned placement needs copy-back
+        adopt = "copyback" if job["allocator"] == "pim-aware" else "splice"
+    spec = SpecParams(adopt=adopt) if job["workload"] == "spec" else None
     res = simulate(requests, alloc, geom, shape, am, block_tokens=bt,
                    max_batch=job["max_batch"],
                    sample_every=job["sample_every"],
@@ -76,7 +78,8 @@ def _run_cell(job: dict) -> dict:
                addrmap=job["addrmap"], block_tokens=bt, seed=job["seed"],
                headroom=job["headroom"], kv_shards=job["kv_shards"],
                coalesce=job["coalesce"], model=job["model"],
-               spec_adopt=job["spec_adopt"], pim_scratch=job["pim_scratch"],
+               spec_adopt=(adopt if job["workload"] == "spec" else "n/a"),
+               pim_scratch=job["pim_scratch"],
                admission=job["admission"], csv=str(csv_path),
                **{k: v for k, v in wkw.items()})
     row.update({k: v for k, v in res.summary.items() if k != "runtime_s"})
@@ -90,7 +93,7 @@ DEFAULTS = dict(dram="hbm3-pim", addrmap="host-cacheline",
                 model="llama-gqa-8kv", requests=1000, max_batch=64,
                 sample_every=16, sample_seqs=8, window=64,
                 coalesce="window", pool_blocks=0, headroom=1.3,
-                kv_shards=1, spec_adopt="splice", pim_scratch="separate",
+                kv_shards=1, spec_adopt="auto", pim_scratch="separate",
                 admission="oracle")
 
 # cell key -> (job/workload-kwarg key, goes into workload_kwargs?)

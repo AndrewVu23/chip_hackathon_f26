@@ -470,3 +470,69 @@ Default flipped: pim-aware now uses separate scratch (`--pim-scratch`),
 spec adoption stays `splice` by default so the baseline remains
 vLLM-faithful; `--spec-adopt copyback` is the recommended pim-aware
 configuration and the headline figure should be regenerated with it.
+
+
+## 2026-09-11 — CORRECTION + toolchain: Ramulator 2 never built on 08-28
+
+The 08-28 entry "Cloned + built third_party/ramulator2" was false. The
+build had stopped at 44% with `make: *** [all] Error 2`; the "BUILD_OK"
+echo came from a shell chain whose output was never read — a process
+failure on my side (trusted an exit code, did not read the log). Nothing
+downstream depended on it until Phase E.
+
+Root cause: Apple clang 21 enforces the dependent-template rule at
+`src/ramulator/base/param.h:37` (`config[name].as<T>()` must be
+`config[name].template as<T>()`). One-line patch stored at
+`third_party/patches/ramulator2-apple-clang21-param-template.patch` so the
+commit pin stays exact. The pinned commit produces `libramulator` + a
+nanobind Python module (no standalone binary), so CMake must be pointed at
+the venv interpreter (`-DPython_EXECUTABLE`); it otherwise picks the
+Homebrew framework python. Verified build: `python/ramulator/_ramulator
+.cpython-313-darwin.so`. Recipe in third_party/README.md.
+
+## 2026-09-11 — PHASE D: vLLM admission + preempt-by-recompute (configs/phaseD*.yaml)
+
+`--admission vllm` ports vLLM v0.2.7 scheduler semantics: admit on prompt
+blocks + 1% watermark (BlockSpaceManager.can_allocate), no reservation of
+future growth; when a running sequence cannot get a block, preempt the most
+recently admitted other sequence by RECOMPUTE (free all blocks, keep
+generated tokens as prompt, re-queue at the front; Scheduler._schedule /
+_preempt_by_recompute). The pool is genuinely oversubscribed, so the free
+list churns as in production. 500 requests, bt16, host-cacheline.
+
+**Steady (M1; preemptions in parentheses, identical for both allocators):**
+
+| headroom | oracle paged | oracle pim-aware | vllm paged | vllm pim-aware | pa/paged M3 (vllm) |
+|---:|--:|--:|--:|--:|--:|
+| 0.6 | 0.763 | 0.963 | 0.774 (206) | **0.860** (202) | 1.38x |
+| 0.8 | 0.769 | 0.963 | 0.783 (161) | 0.879 (148) | 1.46x |
+| 1.0 | 0.775 | 0.963 | 0.785 (26)  | 0.940 (26)  | 1.90x |
+| 1.3 | 0.785 | 0.963 | 0.785 (0)   | 0.963 (0)   | 2.13x |
+
+**Finding (negative, real): under heavy preemption the PIM-aware advantage
+shrinks — 2.14x -> 1.38x at 0.6x headroom.** The paged baseline does not
+care (its placement is already scattered; 0.77-0.79 throughout). PIM-aware
+degrades because recompute re-admits a now-longer prompt in ONE burst into
+whatever partial frames the churn left (no empty frames exist in an
+oversubscribed pool), i.e. the same fallback-path weakness behind the spec
+dip: frame_spread 1.00 -> 3.70. My earlier expectation ("preemption only
+hurts paged") was wrong. Preemption also costs everyone 36% makespan at
+0.6 (4031 vs 2959 steps) — the usual recompute tax.
+
+Fix candidates (not implemented): (a) re-admission-aware placement — on
+recompute, prefer the frame set the sequence previously occupied if still
+partially free; (b) the brief's optional compaction pass with copy-bytes
+accounting; (c) choose fallback frames by longest contiguous free run
+rather than most free slots. Any of these is ~1-2 h; (a) is cheapest.
+
+**Spec:** the first D pass ran pim-aware with separate scratch + SPLICE
+adoption by mistake (0.850, i.e. B2's harmful cell). Re-run with copy-back
+(results/phaseD_specfix/): pim-aware 0.963 at every headroom under oracle,
+0.960-0.963 under vllm (spec sequences finish in fewer steps, so
+preemption is rare: 7 at 0.6x), **2.4x over paged**. Sweep/CLI default is
+now `--spec-adopt auto` = copyback for pim-aware, splice (vLLM-faithful)
+for everything else.
+
+Preemption + spec + prefix all conserve blocks every step (tests), and
+vllm-mode runs are byte-deterministic. Contiguous is excluded from vllm
+mode by construction (it reserves whole spans).

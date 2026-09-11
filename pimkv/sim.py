@@ -158,7 +158,7 @@ def simulate(requests: list[Request], alloc: KVAllocator, geom: DramGeometry,
              timing: PimTiming = DEFAULT_TIMING, seed: int = 0,
              check_every: int = 64, frame_blocks: int = 1,
              spec: SpecParams | None = None, admission: str = "oracle",
-             watermark: float = 0.01) -> SimResult:
+             watermark: float = 0.01, on_sample=None) -> SimResult:
     """``admission``: "oracle" (Phases 0-2: reserve the final footprint, no
     preemption) or "vllm" (Phase D: vLLM v0.2.7 scheduler semantics —
     admit on prompt blocks + a 1% watermark, and when a running sequence
@@ -423,6 +423,8 @@ def simulate(requests: list[Request], alloc: KVAllocator, geom: DramGeometry,
                 row.update(step=t, live_blocks=alloc.num_live,
                            free_blocks=alloc.num_free)
                 rows.append(row)
+                if on_sample is not None:   # Phase E trace capture hook
+                    on_sample(t, s, list(alloc.get_table(s.rid)))
 
         for rid in finished:
             s = active.pop(rid)

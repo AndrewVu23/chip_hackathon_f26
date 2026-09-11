@@ -1,0 +1,13 @@
+# Re-run of the headline sweep's pim-aware spec cells with the B2 fix
+# (separate scratch + copy-back), 1000 requests, to regenerate headline.png.
+common:
+  dram: hbm3-pim
+  addrmap: host-cacheline
+  requests: 1000
+  max_batch: 64
+cells:
+  - workloads: [spec]
+    allocators: [pim-aware]
+    block_tokens: [4, 8, 16, 32, 64, 128, 256]
+    spec_adopts: [copyback]
+    seeds: [0]

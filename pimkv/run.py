@@ -75,8 +75,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="spec workload: draft tokens per branch (D)")
     p.add_argument("--spec-accept", type=float, default=0.8,
                    help="spec workload: draft i accepted with p**i")
-    p.add_argument("--spec-adopt", choices=("splice", "copyback"),
-                   default="splice",
+    p.add_argument("--spec-adopt", choices=("auto", "splice", "copyback"),
+                   default="auto",
                    help="spec: splice = vLLM pointer-swap of the winning "
                         "branch tail; copyback = copy accepted tokens into "
                         "the sequence's own tail, free all branches")
@@ -117,8 +117,11 @@ def main(argv: list[str] | None = None) -> int:
     alloc = make_allocator(args.allocator, pool_blocks, args.seed,
                            frame_blocks=fb if args.allocator == "pim-aware"
                            else 1, pim_scratch=args.pim_scratch)
+    adopt = args.spec_adopt
+    if adopt == "auto":   # B2: pim-aware needs copy-back; paged stays vLLM-faithful
+        adopt = "copyback" if args.allocator == "pim-aware" else "splice"
     spec = (SpecParams(width=args.spec_width, depth=args.spec_depth,
-                       accept=args.spec_accept, adopt=args.spec_adopt)
+                       accept=args.spec_accept, adopt=adopt)
             if args.workload == "spec" else None)
 
     res = simulate(requests, alloc, geom, shape, am,

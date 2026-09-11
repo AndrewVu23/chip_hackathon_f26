@@ -27,10 +27,23 @@ kill-test:
 	  --addrmap host-cacheline --block-tokens 16 --requests 2000 --seed 0 \
 	  --out results/phase0/steady_paged_hostcacheline.csv
 
+# Phase 2 headline sweep: 48 runs (~15 min with 4 workers).
+sweep:
+	$(PY) -m pimkv.sweep --config configs/headline.yaml \
+	  --out results/headline/ --jobs 4
+	$(PY) -m pimkv.sweep --config configs/heatmap.yaml \
+	  --out results/heatmap/ --jobs 4
+
 # Regenerates every figure from scratch (grows as phases land).
-reproduce: kill-test
+reproduce: kill-test sweep
 	$(PY) -m pimkv.plots m1-hist results/phase0/steady_paged_hostcentric.csv \
 	  figures/phase0_m1_hist.png
+	$(PY) -m pimkv.plots headline results/headline/summary.csv \
+	  figures/headline.png
+	$(PY) -m pimkv.plots bandwidth results/headline/summary.csv \
+	  figures/bandwidth.png
+	$(PY) -m pimkv.plots heatmap results/heatmap/summary.csv \
+	  figures/sweep_heatmap.png
 
 clean:
 	rm -rf results figures .pytest_cache

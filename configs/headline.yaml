@@ -1,16 +1,32 @@
-# Phase 2 — headline-figure sweep (consumed by pimkv.sweep, not built yet).
-# Schema is settled now so results land in a stable layout; values may widen.
+# Headline sweep (consumed by pimkv.sweep).
 #
-# headline.png = M1 (and M3) vs block size, one curve per allocator,
-# spec-workload overlay. One CSV per cell under results/headline/.
+# Everything runs on the REALISTIC host map (host-cacheline): Phase 0 showed
+# the brief's host-centric map destroys bank parallelism regardless of
+# allocator (an address-map problem the allocator cannot fix), and the
+# pim-friendly slab map makes 16-token blocks intrinsically aligned. The
+# allocator question lives on channel-interleaved maps.
+#
+# headline.png  <- steady+spec cells: M1 & M3 vs block size, 3 allocators
+# bandwidth.png <- bt=16 cells across all four workloads
 
-workloads: [steady, spec]          # spec lands in Phase 1
-allocators: [paged, contiguous, pim-aware]
-dram: hbm3-pim
-addrmaps: [pim-friendly, host-centric, host-cacheline]
-block_tokens: [4, 8, 16, 32, 64, 128, 256]   # 128 = derived PIM-natural size
-requests: 2000
-seeds: [0, 1, 2]
-max_batch: 64
-coalesce: window
-window: 64
+common:
+  dram: hbm3-pim
+  addrmap: host-cacheline
+  requests: 1000
+  max_batch: 64
+
+cells:
+  # block-size sweep, steady + adversarial spec
+  - workloads: [steady, spec]
+    allocators: [paged, pim-aware, contiguous]
+    block_tokens: [4, 8, 16, 32, 64, 128, 256]
+    seeds: [0]
+
+  # per-workload bandwidth comparison at the serving-standard block size
+  - workloads: [longctx, prefix]
+    allocators: [paged, pim-aware, contiguous]
+    block_tokens: [16]
+    seeds: [0]
+    requests: 300
+    sample_every: 32
+    sample_seqs: 4

@@ -1,0 +1,17 @@
+# sweep_heatmap.png — M1 over (block size x context length), paged baseline,
+# realistic host map. Fixed-length workload isolates the context-length axis.
+
+common:
+  dram: hbm3-pim
+  addrmap: host-cacheline
+  requests: 300
+  max_batch: 64
+  sample_every: 32
+  sample_seqs: 4
+
+cells:
+  - workloads: [fixedlen]
+    allocators: [paged]
+    block_tokens: [4, 8, 16, 32, 64, 128, 256]
+    prompt_lens: [512, 1024, 2048, 4096, 8192, 16384]
+    seeds: [0]

@@ -153,3 +153,46 @@ measurement either way.
   (= f(M1, M2)) is the honest headline metric, with M1 and M2 reported
   separately. The kill-test go/no-go in the brief is phrased on M1; judge
   it per-map with M2 alongside.
+
+## 2026-09-10 — Phase 1+2 design decisions (owner said proceed)
+
+Owner resumed the project ("proceed with next steps") after the Phase 0 stop;
+framing question resolved by measuring both: the headline figure carries M1
+AND M3 vs block size (allocator recovery + the derived-128 recommendation in
+one plot), spec overlaid.
+
+**Speculation model** (`sim.py::spec_round`, --workload spec): per decode
+round the sequence forks W=4 draft branches of depth D=3; each branch owns a
+private tail = CoW copy of the partial last block (vLLM append_slot
+semantics) + overflow blocks, sized to hold D drafts **plus the bonus token**
+(first implementation missed the bonus and under-allocated — caught by the
+conservation/enumeration checks, not by eye). Draft i accepted w.p. 0.8^i
+sequentially; adopted branch spliced in, all other branches freed. Deviations
+logged: W independent depth-D paths rather than a literal tree (mid-density);
+drafting-phase KV reads not measured (we score the committed cache each
+round); if the pool cannot hold W tails the round degrades to 1-token decode
+(spec_stalls — real engines also disable speculation under pressure).
+Contiguous runs spec against a per-seq reserved scratch region: zero churn,
+copies counted (copied_bytes) — the honest price of contiguity.
+
+**Prefix model**: one system prompt (500-1500 tok, per-seed) shared by ~70%
+of requests, shared at FULL-block granularity through a pinned cache
+(refcount+1 per member, vLLM fork semantics); the partial boundary block is
+private. Contiguous cannot share and allocates private copies — its
+peak_live_blocks is strictly higher (tested), reported as the capacity cost
+of contiguity rather than hidden.
+
+**PimAware allocator**: pool carved into frames whose linear extent is one
+row index across every bank of every channel (rowgroup_bytes x channels =
+512 KB on hbm3-pim — derived in run.py::frame_blocks_for, never hardcoded).
+Sequences keep frame affinity and fill frames at ascending offsets;
+empty-frame-first keeps frames sequence-pure; freed blocks return to their
+frame so alignment survives reuse. No compaction (the brief's optional flag
+is left unimplemented; copied-bytes accounting exists if we add it).
+Longctx arrival rate raised 0.02->0.2 before any measurement so the pool
+actually churns (at near-empty batch every allocator looks fresh-pool clean).
+
+Gate tests re-verified after the refactor (64 tests): conservation holds
+each step under sharing + spec churn; spec runs byte-deterministic; pim-aware
+M1 >= 0.90 vs paged ~0.76 under host-cacheline in the small smoke runs.
+Full-size sweep numbers land below when the 48-run sweep finishes.

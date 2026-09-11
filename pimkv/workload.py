@@ -71,9 +71,13 @@ def steady(n_requests: int, seed: int, *, arrival_rate: float = 0.25,
             for i in range(n_requests)]
 
 
-def longctx(n_requests: int, seed: int, *, arrival_rate: float = 0.02,
+def longctx(n_requests: int, seed: int, *, arrival_rate: float = 0.2,
             ) -> list[Request]:
-    """Long-context: prompts uniform 8k-32k tokens, outputs 32-256."""
+    """Long-context: prompts uniform 8k-32k tokens, outputs 32-256.
+
+    Default arrival rate targets ~0.2 * E[output] ~ 30 concurrent sequences
+    so the pool actually churns; at very low load any allocator looks
+    fresh-pool clean."""
     rng = np.random.default_rng(seed)
     arrive = _poisson_arrivals(rng, n_requests, arrival_rate)
     prompts = rng.integers(8192, 32768 + 1, size=n_requests)
@@ -122,9 +126,23 @@ def spec(n_requests: int, seed: int, **kw) -> list[Request]:
     return steady(n_requests, seed, **kw)
 
 
+def fixedlen(n_requests: int, seed: int, *, prompt_len: int = 2048,
+             output_len: int = 128, arrival_rate: float = 0.3,
+             ) -> list[Request]:
+    """Fixed prompt/output lengths — the controlled-context axis for the
+    (block size x context length) sweep heatmap. Poisson arrivals keep the
+    pool churning (batch ~ arrival_rate * output_len)."""
+    rng = np.random.default_rng(seed)
+    arrive = _poisson_arrivals(rng, n_requests, arrival_rate)
+    return [Request(rid=i, arrival_step=int(arrive[i]),
+                    prompt_len=prompt_len, output_len=output_len)
+            for i in range(n_requests)]
+
+
 WORKLOADS = {
     "steady": steady,
     "longctx": longctx,
     "prefix": prefix,
     "spec": spec,
+    "fixedlen": fixedlen,
 }

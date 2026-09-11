@@ -381,3 +381,42 @@ row, where the pool is tight and paged/pim-aware still show zero admission
 failures and unchanged M1 — so pool pressure does not alter the allocator
 comparison. To test load properly would require raising max_batch, not the
 arrival rate; logged for whoever picks this up.
+
+## 2026-09-11 — PHASE C: KV-head sharding (configs/phaseC.yaml, 24 runs)
+
+`config.shard_kv(geom, shape, S)` models S independent all-bank domains,
+each owning channels/S channels and kv_heads/S heads — the objection that
+Phases 0-2 byte-interleaved the KV cache over all 32 channels whereas real
+PIM-attention designs assign heads to channel groups.
+
+Result across S = 1, 2, 4, 8 (steady and spec, all three allocators):
+**M1, M2, same_frame and frame_spread are IDENTICAL to three decimals**;
+M3 scales exactly 1/S (steady pim-aware 2801 -> 1400 -> 700 -> 350 GB/s)
+because a shard is proportionally less hardware. The pim-aware/paged M3
+ratio is constant: 2.14x steady, 1.53x spec, at every S.
+
+So the finding is scale-invariant, and it is invariant *for a structural
+reason*: proportional sharding divides rowgroup_bytes and
+kv_bytes_per_token by the same S, holding fixed the only quantity that
+matters — the block's per-channel slice as a fraction of a row-group. The
+result is not an artifact of "32 channels".
+
+**Honest limit of this test.** Because proportional sharding holds that
+ratio fixed by construction, this experiment can only return invariance;
+it answers "is 32 channels special?" (no) but NOT the sharper form of the
+objection, which is "what if a design's bytes-per-token-per-channel ratio
+differs?" That ratio is
+    slice_fraction = bt * kv_bytes_per_token / (channels * rowgroup_bytes)
+and on hbm3-pim at bt=16 it evaluates to:
+
+| model shape | KV B/token | slice as fraction of a row-group |
+|---|---:|---:|
+| MQA, 1 KV head        |    512 | 1/64 (far worse) |
+| GQA, 8 KV heads (ours)|   4096 | 1/8              |
+| MHA, 32 KV heads      |  16384 | 1/2 (nearly self-aligned) |
+
+i.e. **the problem intensifies as models move toward FEWER KV heads**,
+which is exactly the direction GQA/MQA have taken the field — the same
+"direction of travel" argument the proposal makes for speculative decoding.
+Untested (would need model presets + ~6 runs, ~10 min); this is the
+sharpest remaining gap and should be either measured or stated plainly.

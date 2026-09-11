@@ -169,3 +169,78 @@ def effective_bandwidth_gbps(m1: float, m2: float, geom: DramGeometry,
 def decode_latency_ns(kv_bytes: float, bw_gbps: float) -> float:
     """M4: attention-portion decode-step latency in ns."""
     return kv_bytes / bw_gbps
+
+
+def coalesce_channel_stream(bank: np.ndarray, row: np.ndarray,
+                            col: np.ndarray, *, banks_per_channel: int,
+                            window: int = 64,
+                            mode: str = "window") -> list[tuple[int, int]]:
+    """Same coalescing as :func:`coalesce_channel`, but returning the
+    all-bank command stream as (row, column) pairs in issue order instead
+    of only counting it. Used by pimkv.attacc to replay our placements as
+    real PIM_MAC_AB commands in AttAcc's Ramulator 2 extension.
+
+    Consistency with the counting implementation (identical command count
+    and identical row-transition sequence) is asserted in tests — the
+    counting version stays the validated one for all reported metrics.
+    """
+    bank = np.asarray(bank, dtype=np.int64)
+    row = np.asarray(row, dtype=np.int64)
+    col = np.asarray(col, dtype=np.int64)
+    n = int(row.size)
+    out: list[tuple[int, int]] = []
+    if n == 0:
+        return out
+    B = banks_per_channel
+    if mode == "inorder":
+        open_row = -1
+        cur_row = -1
+        cur_col = 0
+        cur_banks: set[int] = set()
+        for b, r, c in zip(bank.tolist(), row.tolist(), col.tolist()):
+            if (r != cur_row or b in cur_banks or len(cur_banks) == B):
+                if cur_row != -1:
+                    out.append((cur_row, cur_col))
+                cur_row, cur_col, cur_banks = r, c, {b}
+            else:
+                cur_banks.add(b)
+        if cur_row != -1:
+            out.append((cur_row, cur_col))
+        return out
+    if mode != "window":
+        raise ValueError(f"unknown coalesce mode {mode!r}")
+
+    carry = np.int64(-1)
+    for s in range(0, n, window):
+        rw, bw, cw = row[s:s + window], bank[s:s + window], col[s:s + window]
+        key = rw * B + bw
+        order = np.argsort(key, kind="stable")
+        ukey, idx, cnt = np.unique(key[order], return_index=True,
+                                   return_counts=True)
+        urow = ukey // B
+        seg = np.flatnonzero(np.r_[True, np.diff(urow) != 0])
+        rows_in_win = urow[seg]
+        m = np.maximum.reduceat(cnt, seg)
+        # representative column per row group: first burst of that row
+        cols = [int(cw[order[idx[i]]]) for i in seg]
+        groups = list(zip(rows_in_win.tolist(), m.tolist(), cols))
+        # Emission order must reproduce the counting model's bookkeeping:
+        #  * the group matching the carried-IN open row issues first (it is
+        #    the one that starts on a hit);
+        #  * the group holding the window's LAST burst issues last, so the
+        #    carried-OUT open row really is rw[-1] as the counting model
+        #    assumes. When those are the same group and the window holds
+        #    other rows, both cannot hold; first wins, and the next window
+        #    loses at most one hit (bounded by one per window, asserted in
+        #    tests).
+        last_row = int(rw[-1])
+        j = next((k for k, g in enumerate(groups) if g[0] == last_row), None)
+        if j is not None and len(groups) > 1:
+            groups.append(groups.pop(j))
+        i = next((k for k, g in enumerate(groups) if g[0] == int(carry)), None)
+        if i is not None:
+            groups.insert(0, groups.pop(i))
+        for r, mm, c in groups:
+            out.extend([(int(r), int(c))] * int(mm))
+        carry = rw[-1]
+    return out

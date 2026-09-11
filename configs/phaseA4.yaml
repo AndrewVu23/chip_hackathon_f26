@@ -1,0 +1,15 @@
+# Phase A4-redo — the load experiment done properly. The original varied
+# arrival rate, but max_batch (64) capped concurrency, so occupancy never
+# moved and the result was null. Batch size is the axis that actually
+# binds: it sets how many sequences share the pool.
+common:
+  dram: hbm3-pim
+  addrmap: host-cacheline
+  requests: 500
+  block_tokens: 16
+  pool_blocks: 3000        # FIXED pool: bigger batch = real memory pressure
+cells:
+  - workloads: [steady]
+    allocators: [paged, pim-aware, contiguous]
+    max_batches: [16, 32, 64, 128, 256]
+    seeds: [0]

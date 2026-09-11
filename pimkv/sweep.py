@@ -37,7 +37,8 @@ def _run_cell(job: dict) -> dict:
     for k, short in (("headroom", "hr"), ("kv_shards", "sh"),
                      ("coalesce", "cm"), ("model", "md"), ("addrmap", "am"),
                      ("spec_adopt", "ad"), ("pim_scratch", "ps"),
-                     ("admission", "adm")):
+                     ("admission", "adm"), ("pim_plan", "pl"),
+                     ("pim_compact", "cp")):
         if job.get(k) != DEFAULTS[k]:
             tag += f"_{short}{job[k]}"
     name = (f"{job['workload']}_{job['allocator']}_{job['addrmap']}"
@@ -56,7 +57,9 @@ def _run_cell(job: dict) -> dict:
     fb = frame_blocks_for(geom, shape, bt)
     alloc = make_allocator(job["allocator"], pool, job["seed"],
                            frame_blocks=fb if job["allocator"] == "pim-aware"
-                           else 1, pim_scratch=job["pim_scratch"])
+                           else 1, pim_scratch=job["pim_scratch"],
+                           pim_plan=job["pim_plan"],
+                           pim_compact=job["pim_compact"])
     adopt = job["spec_adopt"]
     if adopt == "auto":   # B2: frame-aligned placement needs copy-back
         adopt = "copyback" if job["allocator"] == "pim-aware" else "splice"
@@ -80,7 +83,10 @@ def _run_cell(job: dict) -> dict:
                coalesce=job["coalesce"], model=job["model"],
                spec_adopt=(adopt if job["workload"] == "spec" else "n/a"),
                pim_scratch=job["pim_scratch"],
-               admission=job["admission"], csv=str(csv_path),
+               admission=job["admission"], pim_plan=job["pim_plan"],
+               pim_compact=job["pim_compact"],
+               max_batch=job["max_batch"],
+               csv=str(csv_path),
                **{k: v for k, v in wkw.items()})
     row.update({k: v for k, v in res.summary.items() if k != "runtime_s"})
     print(f"  done {name}: M1 {res.summary['m1_mean']:.3f}  "
@@ -94,6 +100,7 @@ DEFAULTS = dict(dram="hbm3-pim", addrmap="host-cacheline",
                 sample_every=16, sample_seqs=8, window=64,
                 coalesce="window", pool_blocks=0, headroom=1.3,
                 kv_shards=1, spec_adopt="auto", pim_scratch="separate",
+                pim_plan="bestfit", pim_compact=0.0,
                 admission="oracle")
 
 # cell key -> (job/workload-kwarg key, goes into workload_kwargs?)
@@ -107,6 +114,9 @@ AXES = {
     "models": ("model", False),
     "spec_adopts": ("spec_adopt", False),
     "pim_scratch_modes": ("pim_scratch", False),
+    "pim_plans": ("pim_plan", False),
+    "pim_compacts": ("pim_compact", False),
+    "max_batches": ("max_batch", False),
     "admission_modes": ("admission", False),
     "prompt_lens": ("prompt_len", True),
     "arrival_rates": ("arrival_rate", True),

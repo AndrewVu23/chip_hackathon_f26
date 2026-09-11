@@ -261,7 +261,9 @@ class PimAware(KVAllocator):
 
     def __init__(self, num_blocks: int, seed: int = 0, *,
                  blocks_per_frame: int = 1,
-                 segregate_scratch: bool = True) -> None:
+                 segregate_scratch: bool = True,
+                 plan: str = "bestfit",
+                 compact_below: float = 0.0) -> None:
         super().__init__(num_blocks, seed)
         if num_blocks % blocks_per_frame:
             raise ValueError("num_blocks must be a multiple of blocks_per_frame")
@@ -272,6 +274,26 @@ class PimAware(KVAllocator):
         # 2026-09-11). With segregation they come from a shared scratch
         # affinity domain instead, so committed frames stay sequence-pure.
         self.segregate_scratch = segregate_scratch
+        # Phase D2: under vLLM preempt-by-recompute the pool is
+        # oversubscribed, so no frame is ever empty and the one-block-at-a-
+        # time fallback ("globally most-free frame") lets every sequence
+        # nibble at the same frames — frame_spread 1.0 -> 3.7, M1 0.963 ->
+        # 0.860 (NOTES 2026-09-11). "bestfit" instead plans the WHOLE
+        # admission up front: fewest frames that can hold it, empty frames
+        # first, then partial frames by descending free capacity. "greedy"
+        # restores the pre-fix behaviour for A/B comparison.
+        if plan not in ("bestfit", "greedy"):
+            raise ValueError(f"unknown plan {plan!r}")
+        self.plan_mode = plan
+        self.plans: dict[object, list[int]] = {}
+        # Opportunistic compaction (AGENT_BRIEF §5.2, "behind a flag;
+        # measure its cost in block-copy bytes"). When a frame's occupancy
+        # falls below this fraction, its surviving blocks are migrated into
+        # fuller frames and the block tables rewritten, so the frame comes
+        # back whole. 0.0 = disabled. Cost is counted in ``blocks_copied``.
+        self.compact_below = compact_below
+        self.blocks_copied = 0
+        self.compactions = 0
         self.n_frames = num_blocks // blocks_per_frame
         # per-frame min-heap of free offsets (ascending allocation)
         self.frame_free: list[list[int]] = [list(range(self.G))
@@ -285,7 +307,40 @@ class PimAware(KVAllocator):
     def num_free(self) -> int:
         return self._nfree
 
+    def _plan_frames(self, seq_id: object, n: int) -> None:
+        """Reserve a frame set for an n-block admission (bestfit mode)."""
+        if self.plan_mode != "bestfit" or n <= 0:
+            return
+        empties, partials = [], []
+        for f in range(self.n_frames):
+            k = len(self.frame_free[f])
+            if k == self.G:
+                empties.append(f)
+            elif k:
+                partials.append((k, -f, f))
+        partials.sort(reverse=True)       # most free first, low index on ties
+        chosen, cap = [], 0
+        for f in empties:                 # whole frames first: spread -> 1.0
+            if cap >= n:
+                break
+            chosen.append(f)
+            cap += self.G
+        for k, _, f in partials:
+            if cap >= n:
+                break
+            chosen.append(f)
+            cap += k
+        if cap >= n:
+            self.plans[seq_id] = chosen
+
     def _pick_frame(self, seq_id: int) -> int:
+        planned = self.plans.get(seq_id)
+        if planned:
+            while planned and not self.frame_free[planned[0]]:
+                planned.pop(0)
+            if planned:
+                return planned[0]
+            self.plans.pop(seq_id, None)
         f = self.affinity.get(seq_id)
         if f is not None and self.frame_free[f]:
             return f
@@ -318,6 +373,16 @@ class PimAware(KVAllocator):
         if len(self.frame_free[f]) == self.G:
             heapq.heappush(self.empty_frames, f)
 
+    def admit(self, seq_id: int, n_prompt_blocks: int,
+              n_total_blocks: int) -> list[int]:
+        self._plan_frames(seq_id, n_prompt_blocks)
+        return super().admit(seq_id, n_prompt_blocks, n_total_blocks)
+
+    def admit_shared(self, seq_id: int, shared: list[int], n_new: int,
+                     n_total_blocks: int) -> list[int]:
+        self._plan_frames(seq_id, n_new)
+        return super().admit_shared(seq_id, shared, n_new, n_total_blocks)
+
     SCRATCH_KEY = "scratch"   # one shared affinity domain for all branches
 
     def alloc_scratch(self, seq_id: int, n: int) -> list[int]:
@@ -330,6 +395,63 @@ class PimAware(KVAllocator):
     def release(self, seq_id: int) -> None:
         super().release(seq_id)
         self.affinity.pop(seq_id, None)
+        self.plans.pop(seq_id, None)
+        if self.compact_below > 0.0:
+            self.compact()
+
+    # -- opportunistic compaction ------------------------------------------
+    def _owners(self) -> dict[int, list[tuple[object, int]]]:
+        """block -> [(table key, index)]. Rebuilt per compaction (rare);
+        a shared block legitimately appears in several tables."""
+        own: dict[int, list[tuple[object, int]]] = {}
+        for key, tab in self.tables.items():
+            for i, b in enumerate(tab):
+                own.setdefault(b, []).append((key, i))
+        return own
+
+    def compact(self) -> int:
+        """Migrate blocks out of sparsely-occupied frames so alignment is
+        restored. Only blocks reachable from a block table can move (a
+        speculative scratch list is held by the caller and must not be
+        rewritten underneath it). Returns the number of blocks copied."""
+        thresh = self.compact_below * self.G
+        donors = [f for f in range(self.n_frames)
+                  if 0 < self.G - len(self.frame_free[f]) < thresh]
+        if not donors:
+            return 0
+        own = self._owners()
+        moved = 0
+        for f in donors:
+            occupied = [f * self.G + o for o in range(self.G)
+                        if o not in self.frame_free[f]]
+            for b in occupied:
+                where = own.get(b)
+                if not where:
+                    continue              # scratch / untracked: leave alone
+                # find the fullest frame that still has room, excluding donors
+                best, best_used = -1, -1
+                for g in range(self.n_frames):
+                    if g == f or g in donors or not self.frame_free[g]:
+                        continue
+                    used = self.G - len(self.frame_free[g])
+                    if used > best_used:
+                        best, best_used = g, used
+                if best < 0:
+                    continue
+                off = heapq.heappop(self.frame_free[best])
+                nb = best * self.G + off
+                self.refcount[nb] = self.refcount.pop(b)
+                for key, i in where:
+                    self.tables[key][i] = nb
+                own[nb] = where
+                heapq.heappush(self.frame_free[f], b % self.G)
+                if len(self.frame_free[f]) == self.G:
+                    heapq.heappush(self.empty_frames, f)
+                moved += 1
+        if moved:
+            self.compactions += 1
+            self.blocks_copied += moved
+        return moved
 
 
 class ContiguousOracle(KVAllocator):
@@ -460,7 +582,9 @@ ALLOCATORS = ("paged", "random", "contiguous", "pim-aware")
 
 def make_allocator(name: str, num_blocks: int, seed: int, *,
                    frame_blocks: int = 1,
-                   pim_scratch: str = "separate") -> KVAllocator:
+                   pim_scratch: str = "separate",
+                   pim_plan: str = "bestfit",
+                   pim_compact: float = 0.0) -> KVAllocator:
     """Factory. ``frame_blocks`` (pim-aware only) = blocks per alignment
     frame; the caller derives it from geometry (see run.py) and pads
     num_blocks to a multiple. ``pim_scratch``: "separate" (Phase B2 fix) or
@@ -474,5 +598,6 @@ def make_allocator(name: str, num_blocks: int, seed: int, *,
     if name == "pim-aware":
         num_blocks = _ceil_div(num_blocks, frame_blocks) * frame_blocks
         return PimAware(num_blocks, seed, blocks_per_frame=frame_blocks,
-                        segregate_scratch=(pim_scratch == "separate"))
+                        segregate_scratch=(pim_scratch == "separate"),
+                        plan=pim_plan, compact_below=pim_compact)
     raise KeyError(name)

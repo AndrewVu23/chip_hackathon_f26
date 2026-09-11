@@ -85,6 +85,15 @@ def build_parser() -> argparse.ArgumentParser:
                    help="pim-aware: draw spec branch tails from a shared "
                         "scratch domain (Phase B2 fix) or from the "
                         "sequence's own frame (Phase 2 behaviour)")
+    p.add_argument("--pim-plan", choices=("bestfit", "greedy"),
+                   default="bestfit",
+                   help="pim-aware: plan the whole admission into the "
+                        "fewest frames (bestfit, Phase D2) or take one "
+                        "frame at a time (greedy, pre-fix)")
+    p.add_argument("--pim-compact", type=float, default=0.0,
+                   help="pim-aware: compact frames whose occupancy "
+                        "falls below this fraction (0 = off); cost is "
+                        "reported as blocks_copied")
     p.add_argument("--admission", choices=("oracle", "vllm"),
                    default="oracle",
                    help="oracle = reserve final footprint, no preemption "
@@ -116,7 +125,9 @@ def main(argv: list[str] | None = None) -> int:
     fb = frame_blocks_for(geom, shape, block_tokens)
     alloc = make_allocator(args.allocator, pool_blocks, args.seed,
                            frame_blocks=fb if args.allocator == "pim-aware"
-                           else 1, pim_scratch=args.pim_scratch)
+                           else 1, pim_scratch=args.pim_scratch,
+                           pim_plan=args.pim_plan,
+                           pim_compact=args.pim_compact)
     adopt = args.spec_adopt
     if adopt == "auto":   # B2: pim-aware needs copy-back; paged stays vLLM-faithful
         adopt = "copyback" if args.allocator == "pim-aware" else "splice"

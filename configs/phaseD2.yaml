@@ -1,0 +1,22 @@
+# Phase D2 — does best-fit frame planning repair the preemption regression?
+# A/B of PimAware's admission planner under vLLM preempt-by-recompute.
+# greedy = pre-fix (one frame at a time); bestfit = plan the whole admission
+# into the fewest frames. paged included as the unaffected reference.
+common:
+  dram: hbm3-pim
+  addrmap: host-cacheline
+  requests: 500
+  max_batch: 64
+  admission: vllm
+cells:
+  - workloads: [steady, spec]
+    allocators: [pim-aware]
+    block_tokens: [16]
+    pim_plans: [greedy, bestfit]
+    headrooms: [0.6, 0.8, 1.0, 1.3]
+    seeds: [0]
+  - workloads: [steady, spec]
+    allocators: [paged]
+    block_tokens: [16]
+    headrooms: [0.6, 0.8, 1.0, 1.3]
+    seeds: [0]

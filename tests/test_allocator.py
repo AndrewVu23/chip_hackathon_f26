@@ -177,3 +177,57 @@ def test_pim_aware_scratch_segregation_keeps_frames_pure():
     b = PimAware(64, blocks_per_frame=8, segregate_scratch=False)
     b.admit(1, 4, 4)
     assert all(x // 8 == 0 for x in b.alloc_scratch(1, 4))   # old behaviour
+
+
+def test_pim_aware_bestfit_packs_into_fewest_frames():
+    """Phase D2: a fragmented pool (every frame half-used) must still give a
+    new sequence the fewest frames that hold it, not one block from each."""
+    a = PimAware(64, blocks_per_frame=8, plan="bestfit")
+    for s in range(8):                      # fill every frame half-way
+        a.admit(s, 4, 4)
+    for s in range(8):                      # free alternate frames' halves
+        if s % 2:
+            a.release(s)
+    t = a.admit(100, 8, 8)                  # 8 blocks into a mosaic pool
+    # ceil(8/8) = 1 frame is the minimum, and whole-empty frames are
+    # preferred over the half-free ones, so it must land in exactly one
+    assert len(set(b // 8 for b in t)) == 1, t
+    # and 12 blocks (1.5 frames) must use exactly 2
+    t2 = a.admit(101, 12, 12)
+    assert len(set(b // 8 for b in t2)) == 2, t2
+    a.assert_conservation()
+
+
+def test_pim_aware_greedy_mode_still_available():
+    a = PimAware(64, blocks_per_frame=8, plan="greedy")
+    assert len(a.admit(1, 8, 8)) == 8
+    a.assert_conservation()
+
+
+def test_pim_aware_compaction_restores_frames_and_rewrites_tables():
+    a = PimAware(32, blocks_per_frame=8, plan="greedy", compact_below=0.5)
+    a.admit(1, 8, 8)                    # frame 0 full
+    a.admit(2, 8, 8)                    # frame 1 full
+    a.admit(3, 2, 2)                    # frame 2, 2/8 -> sparse
+    before = list(a.tables[3])
+    a.release(2)                        # triggers compaction
+    # seq 3's blocks migrated out of the sparse frame into a fuller one,
+    # and its table was rewritten to the new ids
+    assert a.tables[3] != before
+    assert a.blocks_copied == 2 and a.compactions == 1
+    assert all(b in a.refcount for b in a.tables[3])
+    a.assert_conservation()
+    a.release(1); a.release(3)
+    a.assert_conservation()
+    assert a.num_free == 32
+
+
+def test_compaction_leaves_scratch_blocks_alone():
+    a = PimAware(32, blocks_per_frame=8, plan="greedy", compact_below=0.5)
+    a.admit(1, 8, 8)
+    scratch = a.alloc_scratch(1, 2)      # not in any table
+    a.compact()
+    assert all(b in a.refcount for b in scratch)   # untouched, still valid
+    a.unref_blocks(scratch)
+    a.release(1)
+    a.assert_conservation()

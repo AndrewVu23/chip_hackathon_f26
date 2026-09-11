@@ -1,0 +1,16 @@
+# Phase D3 — does opportunistic compaction repair the preemption regression
+# that best-fit planning (D2) could not? Sweeps the occupancy threshold;
+# cost is reported as blocks_copied.
+common:
+  dram: hbm3-pim
+  addrmap: host-cacheline
+  requests: 500
+  max_batch: 64
+  block_tokens: 16
+  admission: vllm
+cells:
+  - workloads: [steady]
+    allocators: [pim-aware]
+    pim_compacts: [0.0, 0.25, 0.5, 0.75]
+    headrooms: [0.6, 0.8, 1.0]
+    seeds: [0]

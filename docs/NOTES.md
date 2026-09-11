@@ -579,3 +579,100 @@ observed; Ramulator's clock_ratio is a frequency: larger = faster).
 Net: Ramulator validates the row-locality half of the model exactly and the
 ordering fully; M2 and the all-bank amplification remain analytical, stated
 as such. Ramulator runs take ~1 s per 50k-request trace.
+
+## 2026-09-11 — PHASE D2/D3: two attempted fixes for the preemption
+## regression, BOTH FAILED (negative results, kept and reported)
+
+Phase D found that under vLLM preempt-by-recompute at 0.6x headroom the
+pim-aware advantage falls 2.14x -> 1.38x (M1 0.963 -> 0.860, frame_spread
+1.0 -> 3.70). Two candidate fixes from that entry were implemented and
+measured.
+
+**D2 — best-fit frame planning (`--pim-plan bestfit`, configs/phaseD2.yaml).**
+Plan the WHOLE admission into the fewest frames (empty frames first, then
+partials by descending free capacity) instead of taking one frame at a time.
+Result: **exactly zero effect** — greedy and bestfit agree to three decimals
+at every headroom on both workloads (0.860/3.704 at hr 0.6). Reason: the
+old greedy path already picked the globally most-free frame on each call,
+so planning in bulk selects the same frames. The regression is fragmentation
+itself, not the fallback heuristic. Default left at bestfit (equivalent,
+slightly cheaper: one scan per admission instead of one per block).
+
+**D3 — opportunistic compaction (`--pim-compact F`, configs/phaseD3.yaml).**
+The brief's optional lever (§5.2): when a frame's occupancy drops below F,
+migrate its blocks into fuller frames and rewrite the block tables; cost
+counted in `blocks_copied`. Result: **actively harmful.**
+
+| headroom | F=0 | F=0.25 | F=0.5 | F=0.75 |
+|---:|--:|--:|--:|--:|
+| 0.6 | 0.860 / 3.70 / 0 | 0.857 / 3.77 / 342 | 0.855 / 3.76 / 1972 | 0.861 / 3.52 / 6003 |
+| 0.8 | 0.879 / 3.27 / 0 | 0.867 / 3.57 / 753 | 0.854 / 3.77 / 2605 | 0.860 / 3.59 / 6045 |
+| 1.0 | **0.940 / 1.62 / 0** | 0.916 / 2.27 / 1619 | 0.878 / 3.15 / 6443 | 0.859 / 3.58 / 10261 |
+(M1 / frame_spread / blocks copied)
+
+M1 gets monotonically WORSE with more compaction while paying up to 10k
+block copies. The reason is a genuine design lesson: this compaction
+migrates individual blocks from sparse frames into the *fullest* frame with
+room, which empties donor frames (good for future admissions) but scatters
+the migrated sequence's own blocks across destinations (bad for that
+sequence's alignment). M1 is a per-sequence measure, so breaking one
+sequence's contiguity to free a frame is a net loss. **Naive compaction
+optimizes the wrong objective.** A correct version would relocate WHOLE
+SEQUENCES into contiguous frame sets, which is a much larger copy cost and
+a different algorithm; logged as future work, not attempted.
+
+Conclusion: the preemption regression is **not fixable by allocator
+placement heuristics at this scope**. Both knobs stay in the code (default:
+bestfit planning, compaction OFF) so the negative results are reproducible.
+The honest framing for the writeup is that PIM-aware allocation delivers
+its full benefit when the pool is not oversubscribed, and degrades
+gracefully (never below the paged baseline) when it is.
+
+## 2026-09-11 — PHASE E2: M2 VALIDATED against AttAcc's all-bank PIM
+
+I was wrong on 09-11 to say M2 "cannot be done" — AttAcc
+(third_party/attacc_simulator, ASPLOS'24) ships a Ramulator 2 extension
+that implements exactly the missing piece: `HBM3-PIM.cpp`, a PIM
+controller/scheduler and a `PIM_MAC_AB` (MAC all-bank) request type. I had
+vendored it as "reference only" without opening it. Its geometry at
+`channel: 16` is identical to our hbm3-pim preset (16 ch x 2 pseudo-ch = 32
+all-bank domains, 16 banks, 16384 rows, 32 x 32 B = 1 KB rows).
+
+`pimkv/attacc.py` replays our real block tables as real all-bank commands:
+capture tables -> enumerate bursts -> pimmodel's coalescer in *stream* mode
+(new `coalesce_channel_stream`, asserted to match the validated counting
+version exactly on command count) -> one `PIM_MAC_AB` per command,
+round-robin across channels -> AttAcc ramulator2 -> `memory_system_cycles`.
+
+**The M2 test.** Same three sequences, same allocator, two address maps.
+M2 is set by the MAP (0.988 host-cacheline vs 0.124 host-centric), and all
+allocators need identical command counts under a given map — so this
+isolates bank parallelism cleanly:
+
+| map | our M2 | commands | AttAcc cycles |
+|---|--:|--:|--:|
+| host-cacheline | 0.988 | 2,645 | 1,099 |
+| host-centric | 0.124 | 21,163 | 8,043 |
+
+Our model predicts 0.988/0.124 = **8.0x** more all-bank commands for the
+same KV bytes; AttAcc measures **7.3x** more cycles. **M2 is real and
+quantitatively confirmed** — the bank-parallelism term is not a modeling
+artifact.
+
+**M1's timing factor is overstated, though.** Within host-cacheline,
+paged vs pim-aware need identical command counts, so the difference is pure
+row-miss cost: AttAcc says 1.48x (1606 vs 1086 cycles), our M3 says 2.13x.
+Solving tf(0.964)/tf(0.799) = 1.48 for the effective miss/hit cost ratio
+gives ~4.4, not the 10.5 we take from the published nRC/nCCDAB figure. That
+published number is the raw timing-parameter ratio; the PIM controller
+overlaps activation with useful work across banks and channels, so the
+EFFECTIVE penalty is roughly half. **Our M3 therefore overstates the
+allocator benefit by ~1.4x on the M1-driven component** (the M2-driven
+component is accurate). Stock-Ramulator Phase E showed the same 1.4x gap
+from the other direction, so this is consistent and now explained.
+
+Recommended reporting: quote M1/M2 as validated; quote M3 ratios with the
+caveat that the row-miss penalty is modeled without ACT overlap, making
+them optimistic by ~1.4x; the 2.3x steady headline becomes ~1.6x on
+AttAcc's timing. Direction, ordering and the block-size/address-map
+conclusions are unaffected.

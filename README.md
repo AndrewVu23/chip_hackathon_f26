@@ -11,8 +11,8 @@ allocator** — no GPU, no inference, no RTL: a CPU-side simulation harness
 that replays allocation event streams through a DRAM address map and an
 analytical all-bank PIM command model.
 
-See `proposal.md` for motivation and `AGENT_BRIEF.md` for the full spec this
-repo implements. `NOTES.md` is the dated decision log.
+See `docs/proposal.md` for motivation and `docs/AGENT_BRIEF.md` for the full
+spec this repo implements. `docs/NOTES.md` is the dated decision log.
 
 ## Quickstart (macOS / Linux, no sudo)
 
@@ -32,7 +32,7 @@ way; `--seed` makes output byte-identical):
   --out results/steady_paged.csv
 ```
 
-Toolchain notes for THIS machine (see NOTES.md 2026-08-28): Homebrew
+Toolchain notes for THIS machine (see docs/NOTES.md 2026-08-28): Homebrew
 python3.14 is broken (pyexpat/libexpat mismatch) — use python3.13 via `uv`;
 C++ builds need `env -u CXXFLAGS -u CFLAGS -u LDFLAGS` because the shell
 profile self-references `CXXFLAGS`. On Purdue `eceprog4` everything is
@@ -103,7 +103,8 @@ configs/        sweep configs (headline.yaml = Phase 2 placeholder)
 results/        run outputs: <name>.csv + <name>.csv.meta.json (gitignored)
 third_party/    vllm_ref (committed, cited) + ramulator2/attacc clones
                 (pinned, re-fetch per third_party/README.md)
-AGENT_BRIEF.md  the spec   proposal.md  the pitch   NOTES.md  decision log
+docs/           AGENT_BRIEF.md (spec), proposal.md, NOTES.md (decision log)
+blog/           write-ups (primer, kill-test post)
 ```
 
 ## Key derived quantity
@@ -142,7 +143,7 @@ measures.
   <0.3; the damage is real but lives in M2 (host-centric: 9.7% of ideal BW)
   and in the sub-row-group block-slice regime (host-cacheline: paged 1173
   vs contiguous 2719 GB/s — 2.3× from placement alone). Full table +
-  verdict: NOTES.md 2026-08-28. Awaiting owner call on framing.
+  verdict: docs/NOTES.md 2026-08-28. Awaiting owner call on framing.
 - Phase 1: longctx implemented; prefix/spec workloads + CoW/fork — next.
 - Phase 2: PimAware allocator + sweeps + headline figure — pending.
 - Phase 3: Ramulator 2 cross-validation (binary already builds) — pending.

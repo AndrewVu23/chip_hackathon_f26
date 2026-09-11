@@ -1,0 +1,1369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Kill Test</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;900&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#E7E9EC;
+  --panel:#F4F5F7;
+  --card:#FFFFFF;
+  --ink:#13161B;
+  --ink-2:#4A515C;
+  --ink-3:#6B7280;
+  --rule:#C2C7CE;
+  --rule-soft:#D6DAE0;
+  --chip:#DCDFE4;
+  --hit:#4038D6;
+  --miss:#C9760A;
+  --recover:#0B8A78;
+  --void:#B8BEC6;
+  --grid:#CCD1D8;
+  --seq1:#CFCDF2;
+  --seq2:#A29BE6;
+  --seq3:#6E65D8;
+  --seq4:#3C34BE;
+  --maxw:960px;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --paper:#131519;
+    --panel:#1B1E24;
+    --card:#20242B;
+    --ink:#E8EAEE;
+    --ink-2:#A2AAB6;
+    --ink-3:#828B98;
+    --rule:#343A44;
+    --rule-soft:#2A2F38;
+    --chip:#2A2F38;
+    --hit:#6F68EE;
+    --miss:#C2851C;
+    --recover:#12A18B;
+    --void:#3A414C;
+    --grid:#2E343E;
+    --seq1:#2C2A5E;
+    --seq2:#453FA0;
+    --seq3:#6259DC;
+    --seq4:#9C96FF;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#131519;
+  --panel:#1B1E24;
+  --card:#20242B;
+  --ink:#E8EAEE;
+  --ink-2:#A2AAB6;
+  --ink-3:#828B98;
+  --rule:#343A44;
+  --rule-soft:#2A2F38;
+  --chip:#2A2F38;
+  --hit:#6F68EE;
+  --miss:#C2851C;
+  --recover:#12A18B;
+  --void:#3A414C;
+  --grid:#2E343E;
+  --seq1:#2C2A5E;
+  --seq2:#453FA0;
+  --seq3:#6259DC;
+  --seq4:#9C96FF;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{animation:none!important;transition:none!important}}
+body{
+  margin:0;background:var(--paper);color:var(--ink);
+  font-family:"IBM Plex Sans",system-ui,-apple-system,sans-serif;
+  font-size:17px;line-height:1.62;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px}
+h1,h2,h3{font-family:Archivo,"Helvetica Neue",sans-serif;font-weight:900;letter-spacing:-0.02em;line-height:1.06;margin:0;text-wrap:balance}
+h2{font-size:clamp(28px,4.4vw,42px);margin-bottom:8px}
+h3{font-size:20px;font-weight:700;letter-spacing:-0.01em;margin:34px 0 8px}
+h4{font-family:Archivo,sans-serif;font-size:13px;letter-spacing:.1em;text-transform:uppercase;margin:0 0 14px;color:var(--ink-2);font-weight:700}
+p{margin:0 0 16px;max-width:68ch}
+a{color:var(--hit)}
+code,.mono{font-family:"IBM Plex Mono",ui-monospace,monospace}
+code{font-size:0.87em;background:var(--chip);padding:1px 5px;border-radius:2px}
+strong{font-weight:600}
+.num{font-variant-numeric:tabular-nums}
+
+/* hero */
+.hero{border-bottom:1px solid var(--rule);padding:56px 0 40px}
+.eyebrow{font-family:"IBM Plex Mono",monospace;font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-2)}
+.hero h1{font-size:clamp(40px,8vw,82px);margin:14px 0 18px;max-width:14ch}
+.hero .lede{font-size:clamp(17px,2.2vw,20px);max-width:60ch;color:var(--ink-2)}
+.stripline{margin-top:34px;display:grid;grid-template-columns:repeat(32,1fr);gap:2px;height:74px}
+.stripline i{display:block;border-radius:1px;background:var(--void);opacity:.35}
+.stripline i.h{opacity:1;background:var(--hit)}
+.stripline i.m{opacity:1;background:var(--miss)}
+.striplineCap{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--ink-2);margin-top:10px}
+
+section{padding:56px 0;border-bottom:1px solid var(--rule-soft)}
+.sechead{display:flex;gap:18px;align-items:baseline;margin-bottom:22px}
+.addr{font-family:"IBM Plex Mono",monospace;font-size:13px;color:var(--miss);font-weight:600;padding-top:6px;white-space:nowrap}
+.sub{color:var(--ink-2);max-width:64ch}
+
+.panel{background:var(--panel);border:1px solid var(--rule);padding:22px;margin:26px 0}
+.note{font-size:14.5px;color:var(--ink-2);border-left:2px solid var(--miss);padding-left:14px;margin:20px 0;max-width:66ch}
+.key{background:var(--chip);border-left:3px solid var(--hit);padding:16px 18px;margin:22px 0}
+.key p:last-child{margin-bottom:0}
+.verdict{border:1px solid var(--miss);border-left-width:4px;background:var(--panel);padding:20px 22px;margin:26px 0}
+.verdict h4{color:var(--miss)}
+
+table{width:100%;border-collapse:collapse;font-size:14.5px;margin:20px 0}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--rule-soft);vertical-align:top}
+th{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-2);font-weight:500}
+td.n{text-align:right;font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}
+th.n{text-align:right}
+tr.hi td{background:var(--chip)}
+.scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+ol,ul{padding-left:22px;margin:0 0 16px;max-width:68ch}
+li{margin-bottom:8px}
+
+pre{font-family:"IBM Plex Mono",monospace;font-size:12.5px;line-height:1.7;background:var(--card);border:1px solid var(--rule);padding:16px;overflow-x:auto;margin:20px 0}
+pre .c{color:var(--ink-3)}
+pre .k{color:var(--hit)}
+
+/* bit ruler */
+.ruler{margin:18px 0 26px}
+.ruler .nm{font-family:"IBM Plex Mono",monospace;font-size:13px;font-weight:600;margin-bottom:2px}
+.ruler .cap{font-size:14px;color:var(--ink-2);margin:8px 0 0;max-width:66ch}
+.bits{display:flex;gap:2px;min-width:560px}
+.bits span{flex:1 1 0;height:34px;display:flex;align-items:center;justify-content:center;font-family:"IBM Plex Mono",monospace;font-size:10.5px;color:#fff;border-radius:1px;white-space:nowrap;overflow:hidden}
+.f-ro{background:var(--ink-2)}
+.f-co{background:var(--recover)}
+.f-ch{background:var(--hit)}
+.f-bk{background:var(--miss)}
+.bitscale{display:flex;gap:2px;min-width:560px;margin-top:3px;font-family:"IBM Plex Mono",monospace;font-size:9.5px;color:var(--ink-3)}
+.bitscale span{flex:1 1 0;text-align:center}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--ink-2);margin-top:12px}
+.legend i{width:11px;height:11px;display:inline-block;border-radius:1px;margin-right:6px;vertical-align:-1px}
+
+/* charts */
+figure{margin:26px 0}
+figcaption{font-size:13.5px;color:var(--ink-2);margin-top:12px;max-width:66ch}
+.barchart{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;align-items:center}
+.barchart .lbl{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--ink-2);text-align:right;white-space:nowrap}
+.barrow{position:relative;height:22px;background:var(--grid);border-radius:2px}
+.barrow b{position:absolute;left:0;top:0;bottom:0;border-radius:0 4px 4px 0;display:block}
+.barrow em{position:absolute;top:0;bottom:0;display:flex;align-items:center;font-family:"IBM Plex Mono",monospace;font-size:11.5px;font-style:normal;font-variant-numeric:tabular-nums;color:var(--ink);padding-left:7px}
+.c-hit{background:var(--hit)}
+.c-miss{background:var(--miss)}
+.c-rec{background:var(--recover)}
+.panels3{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:26px}
+.chartcard{background:var(--card);border:1px solid var(--rule);padding:18px}
+.chartcard .ttl{font-family:Archivo,sans-serif;font-weight:700;font-size:14px;margin-bottom:3px}
+.chartcard .axs{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--ink-3);margin-bottom:14px}
+svg{display:block;max-width:100%}
+.gridline{stroke:var(--grid);stroke-width:1}
+.axline{stroke:var(--rule);stroke-width:1}
+.axtxt{font-family:"IBM Plex Mono",monospace;font-size:10.5px;fill:var(--ink-3)}
+.dlbl{font-family:"IBM Plex Mono",monospace;font-size:11px;fill:var(--ink);font-variant-numeric:tabular-nums}
+
+/* diagrams */
+.dgm{background:var(--card);border:1px solid var(--rule);padding:20px 18px}
+.dgm svg{width:100%;height:auto;min-width:800px}
+.dgmttl{font-family:Archivo,sans-serif;font-weight:700;font-size:14px;margin-bottom:3px}
+.dgmsub{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--ink-3);margin-bottom:16px}
+.sv-lbl{font-family:"IBM Plex Mono",monospace;font-size:11px;fill:var(--ink-2)}
+.sv-lbl-s{font-family:"IBM Plex Mono",monospace;font-size:9.5px;fill:var(--ink-3)}
+.sv-ttl{font-family:Archivo,sans-serif;font-size:12.5px;font-weight:700;fill:var(--ink)}
+.sv-num{font-family:"IBM Plex Mono",monospace;font-size:11.5px;fill:var(--ink);font-variant-numeric:tabular-nums}
+.sv-rule{stroke:var(--rule);stroke-width:1;fill:none}
+.sv-zoom{stroke:var(--rule);stroke-width:1;fill:none;stroke-dasharray:3 3}
+.sv-void{fill:var(--void);opacity:.35}
+.sv-box{fill:none;stroke:var(--ink-2);stroke-width:1}
+.tag{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);border:1px solid var(--rule);padding:2px 6px;border-radius:2px;display:inline-block}
+
+/* lab */
+.ctrls{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px 20px;margin-bottom:20px}
+label.f{display:block;font-family:"IBM Plex Mono",monospace;font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);margin-bottom:5px}
+select,input[type=range]{width:100%}
+select{font-family:"IBM Plex Mono",monospace;font-size:13px;padding:6px;border:1px solid var(--rule);background:var(--card);color:var(--ink);border-radius:2px}
+input[type=range]{accent-color:var(--hit);margin:0}
+.val{font-family:"IBM Plex Mono",monospace;font-size:13px;font-weight:600;color:var(--ink)}
+.out{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:16px;margin-top:20px;border-top:1px solid var(--rule);padding-top:18px}
+.out div span{display:block;font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);margin-bottom:3px}
+.out div b{font-family:Archivo,sans-serif;font-size:28px;font-weight:900;letter-spacing:-.02em;display:block;line-height:1.1;font-variant-numeric:tabular-nums}
+.out div small{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--ink-3)}
+:focus-visible{outline:2px solid var(--hit);outline-offset:2px}
+
+.status{display:inline-block;font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;padding:2px 7px;border-radius:2px;border:1px solid currentColor;vertical-align:1px}
+.s-done{color:var(--recover)}
+.s-open{color:var(--miss)}
+.s-none{color:var(--ink-3)}
+
+.pipe{display:grid;gap:2px;margin:24px 0;font-family:"IBM Plex Mono",monospace;font-size:13px}
+.pipe .st{background:var(--card);border:1px solid var(--rule);padding:12px 14px;display:grid;grid-template-columns:132px 1fr;gap:14px;align-items:start}
+.pipe .st b{color:var(--hit);font-weight:600}
+.pipe .st span{color:var(--ink-2);font-family:"IBM Plex Sans",sans-serif;font-size:14px;line-height:1.5}
+.pipe .arr{color:var(--ink-3);padding-left:14px;font-size:12px}
+
+footer{padding:44px 0 70px;font-family:"IBM Plex Mono",monospace;font-size:12.5px;color:var(--ink-2)}
+footer a{color:var(--hit)}
+@media(max-width:640px){
+  .sechead{flex-direction:column;gap:4px}
+  .addr{padding-top:0}
+  body{font-size:16px}
+  .pipe .st{grid-template-columns:1fr;gap:4px}
+}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="eyebrow">Part II · PIM-aware KV-cache allocation · measured 2026-08-28</div>
+    <h1>The kill test</h1>
+    <p class="lede">We built the harness, wrote the gates, and ran the one experiment designed to end the project early. It fired. Here is what the number actually said — and the narrower, real gap it pointed at instead.</p>
+    <div class="stripline" id="stripline" aria-hidden="true"></div>
+    <div class="striplineCap">The baseline's measured pattern — 32 all-bank commands at M1 = 0.75 &nbsp;·&nbsp; <span style="color:var(--hit)">blue</span> = row already open &nbsp;·&nbsp; <span style="color:var(--miss)">amber</span> = full <span class="mono">tRC</span> row cycle paid</div>
+  </div>
+</header>
+
+<main>
+
+<!-- ========================= 0x10 ========================= -->
+<section>
+<div class="wrap">
+  <div class="sechead"><div class="addr">0x10</div><div><h2>The bet, restated</h2></div></div>
+  <p class="sub">Part I established the collision. Production serving scatters the KV cache into fixed-size pages; a PIM attention unit only goes fast when it can activate <em>the same row index in every bank of a channel at once</em>. This part is the measurement.</p>
+
+  <p>The proposal made a falsifiable claim: under realistic paged allocation, an all-bank PIM unit lands in an already-open row only rarely, and a smarter allocator recovers most of the loss. The brief attached a stop rule to it, in writing, before any code existed:</p>
+
+  <div class="key">
+    <p><strong>Phase 0 — the kill test.</strong> Minimum viable path: steady workload + vLLM-semantics paged allocator + HBM3-PIM address map + M1 only. Produce one number. If M1 is under ~0.3, the premise holds. <strong>If M1 is over ~0.7, stop and say so immediately. Do not rationalize the number or go looking for a workload that makes it look bad.</strong></p>
+  </div>
+
+  <p>That rule exists because the failure mode of a two-week architecture project is not being wrong — it is spending ten days making a dead hypothesis look alive. So the very first runnable configuration was the one most likely to kill the project.</p>
+
+  <p>It came back at <strong class="mono num">M1 = 0.970</strong>. The stop rule fired on day one of measurement, and the honest answer to "did the premise survive?" is <em>not as stated</em>. The rest of this page is what we found when we looked at why.</p>
+</div>
+</section>
+
+<!-- ========================= 0x11 ========================= -->
+<section>
+<div class="wrap">
+  <div class="sechead"><div class="addr">0x11</div><div><h2>What we built to measure it</h2></div></div>
+  <p class="sub">Six Python modules, no GPU, no inference, no RTL. The whole pipeline runs single-threaded on a laptop in under a minute per configuration, which is the only reason the kill test could happen before the harness was "finished".</p>
+
+  <div class="pipe">
+    <div class="st"><b>workload.py</b><span>Deterministic request streams. <code>steady</code>: Poisson arrivals at 0.25 req/step, ShareGPT-like lognormal prompt and output lengths (median ~200 tokens each, long tail). <code>longctx</code>: 8k–32k prompts, short outputs. Same seed, same stream, always.</span></div>
+    <div class="arr">↓ requests (arrival step, prompt_len, output_len)</div>
+    <div class="st"><b>sim.py</b><span>Continuous-batching decode loop. One step = one engine iteration: FCFS admission with an oracle capacity check, one token appended per running sequence, a new block allocated on each block-boundary crossing, blocks released on completion. Metrics sampled every 16 steps across 8 running sequences.</span></div>
+    <div class="arr">↓ block tables (which physical block holds which 16 tokens)</div>
+    <div class="st"><b>allocator.py</b><span><code>paged</code> is a port of vLLM v0.2.7 <code>BlockAllocator</code> — free list initialised ascending, <code>allocate()</code> pops from the tail (LIFO), <code>free()</code> appends. <code>contiguous</code> is the oracle upper bound: one physical span per sequence, reserved whole. <code>random</code> is the worst-case anchor.</span></div>
+    <div class="arr">↓ block ids → linear burst addresses</div>
+    <div class="st"><b>addrmap.py</b><span>Pure bit-slicing from a linear KV address to <code>(channel, bank_group, bank, row, column)</code>. Three interleaving schemes, exactly invertible, tested before it was written.</span></div>
+    <div class="arr">↓ per-burst DRAM coordinates</div>
+    <div class="st"><b>pimmodel.py</b><span>Per channel, coalesce the burst stream into all-bank commands (same row, distinct banks) inside a 64-burst controller reorder window, then compute M1–M4.</span></div>
+  </div>
+
+  <h3>The one decision that made this cheap</h3>
+  <p>The brief forbade running vLLM. Installing it on an Apple Silicon laptop is a multi-day tax, and we do not need inference — we need <em>allocation event streams</em>. So we ported the allocation policy out of <code>vllm/core/block_manager.py</code> at commit <code class="mono">2e0b6e7</code> and cited it in the docstring, line by line.</p>
+  <p>One consequence of that port is worth keeping in your head, because it shapes every number below: vLLM's free list is a LIFO stack initialised in ascending order, so <strong>a fresh pool hands out block ids in descending order</strong>. Even the very first sequence is reverse-ordered in physical space — and, more importantly, it is still a <em>run</em> of consecutive ids. Paged allocation is not random allocation. That distinction turns out to be most of the story.</p>
+
+  <div class="note"><strong>Fidelity gap, logged.</strong> Real vLLM frees a finished sequence by iterating <code>set(block_table)</code> — unordered. We free in block-table order for determinism (gate 4). That slightly <em>tidies</em> the baseline's free list, so if anything it flatters the paged baseline we are trying to indict.</div>
+</div>
+</section>
+
+<!-- ========================= 0x12 ========================= -->
+<section>
+<div class="wrap">
+  <div class="sechead"><div class="addr">0x12</div><div><h2>Four metrics, frozen before the first run</h2></div></div>
+  <p class="sub">The brief fixed these definitions and forbade changing them without sign-off. That constraint is what makes a surprising result reportable instead of negotiable.</p>
+
+  <div class="scroll"><table>
+    <thead><tr><th style="width:52px"></th><th>Metric</th><th>Definition</th></tr></thead>
+    <tbody>
+      <tr><td class="mono" style="color:var(--hit)"><strong>M1</strong></td><td>Row-hit rate</td><td>Fraction of all-bank commands whose target row is already open. All-bank semantics are strict: a partial hit is a miss, because a command at a different row re-activates every bank.</td></tr>
+      <tr><td class="mono" style="color:var(--miss)"><strong>M2</strong></td><td>Bank-parallelism utilisation</td><td>Participating banks per command ÷ banks per channel. A command that only feeds 2 of 16 banks wastes 14 MAC units.</td></tr>
+      <tr><td class="mono" style="color:var(--recover)"><strong>M3</strong></td><td>Effective PIM bandwidth</td><td><code>BW_ideal × M2 × tCCD_ab / (M1·tCCD_ab + (1−M1)·tRC)</code> — hits cost one column interval, misses cost a full row cycle.</td></tr>
+      <tr><td class="mono"><strong>M4</strong></td><td>Decode-step latency</td><td><code>kv_bytes_touched / M3</code>, in ns, for the attention portion of one layer.</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>Only one timing quantity is load-bearing: the ratio <code class="mono">tRC / tCCD_ab</code>. We set it to 45 ns / 4.3 ns ≈ 10.5, from the published AttAcc/Ramulator&nbsp;2 measurement that <code class="mono">nRC</code> runs 10–11× <code class="mono">nCCDAB</code> for decode GEMV. Absolute nanoseconds are indicative until a Ramulator cross-check runs.</p>
+
+  <h3>The geometry everything hangs on</h3>
+  
+  <p>HBM3-PIM preset: 32 pseudo-channels × 16 banks × 1 KB rows × 32 B bursts. One all-bank command therefore moves <span class="mono num">16 × 32 B = 512 B</span>, and one row index across all 16 banks of a channel — a <em>row-group</em> — is <span class="mono num">16 KB</span>. Ideal all-bank bandwidth is <strong class="mono num">3810 GB/s</strong>.</p>
+
+  <figure>
+<div class="dgm">
+<div class="dgmttl">HBM3-PIM, drilled down</div>
+<div class="dgmsub">32 pseudo-channels &middot; 16 banks each &middot; 16,384 rows of 1 KB &middot; 32 B bursts</div>
+<div class="scroll"><svg style="min-width:880px" viewBox="0 0 920 300" role="img" aria-label="Drill-down from one HBM3-PIM stack to 32 pseudo-channels, to 16 banks per channel, to 16384 rows per bank, to 32 column bursts per row">
+<defs><marker id="ar" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><polygon points="0,1 8,4 0,7" fill="currentColor"/></marker></defs>
+<g color="var(--ink-3)">
+<text class="sv-ttl" x="16" y="26">one stack</text>
+<text class="sv-lbl" x="16" y="228">32 pseudo-channels</text>
+<text class="sv-lbl-s" x="16" y="243">8 GiB visible to the KV pool</text>
+<text class="sv-ttl" x="250" y="26">one pseudo-channel</text>
+<text class="sv-lbl" x="250" y="228">16 banks (4 groups x 4)</text>
+<text class="sv-lbl-s" x="250" y="243">the all-bank domain</text>
+<text class="sv-ttl" x="484" y="26">one bank</text>
+<text class="sv-lbl" x="484" y="228">16,384 rows x 1 KB</text>
+<text class="sv-lbl-s" x="484" y="243">one row buffer, one open row</text>
+<text class="sv-ttl" x="718" y="26">one row</text>
+<text class="sv-lbl" x="718" y="228">32 columns x 32 B burst</text>
+<text class="sv-lbl-s" x="718" y="243">1 KB</text>
+<rect x="16.0" y="44" width="3.9" height="160" rx="1" fill="var(--hit)"/>
+<rect x="21.3" y="44" width="3.9" height="160" rx="1" class="sv-void"/>
+<rect x="26.6" y="44" width="3.9" height="160" rx="1" class="sv-void"/>
+<rect x="31.9" y="44" width="3.9" height="160" rx="1" class="sv-void"/>
+<rect x="37.2" y="44" width="3.9" height="160" rx="1" class="sv-void"/>
+<rect x="42.6" y="44" width="3.9" height="160" rx="1" class="sv-void"/>
+<rect x="47.9" y="44" width="3.9" height="160" rx="1" class="sv-void"/>
+<rect x="53.2" y="44" width="3.9" height="160" rx="1" class="sv-void"/>
+<rect x="58.5" y="44" width="3.9" height="160" rx="1" class="sv-void"/>
+<rect x="63.8" y="44" width="3.9" height="160" rx="1" class="sv-void"/>
+<rect x="69.1" y="44" width="3.9" height="160" rx="1" class="sv-void"/>
+<rect x="74.4" y="44" width="3.9" height="160" rx="1" class="sv-void"/>
+<rect x="79.8" y="44" width="3.9" height="160" rx="1" class="sv-void"/>
+<rect x="85.1" y="44" width="3.9" height="160" rx="1" class="sv-void"/>
+<rect x="90.4" y="44" width="3.9" height="160" rx="1" class="sv-void"/>
+<rect x="95.7" y="44" width="3.9" height="160" rx="1" class="sv-void"/>
+<rect x="101.0" y="44" width="3.9" height="160" rx="1" class="sv-void"/>
+<rect x="106.3" y="44" width="3.9" height="160" rx="1" class="sv-void"/>
+<rect x="111.6" y="44" width="3.9" height="160" rx="1" class="sv-void"/>
+<rect x="116.9" y="44" width="3.9" height="160" rx="1" class="sv-void"/>
+<rect x="122.2" y="44" width="3.9" height="160" rx="1" class="sv-void"/>
+<rect x="127.6" y="44" width="3.9" height="160" rx="1" class="sv-void"/>
+<rect x="132.9" y="44" width="3.9" height="160" rx="1" class="sv-void"/>
+<rect x="138.2" y="44" width="3.9" height="160" rx="1" class="sv-void"/>
+<rect x="143.5" y="44" width="3.9" height="160" rx="1" class="sv-void"/>
+<rect x="148.8" y="44" width="3.9" height="160" rx="1" class="sv-void"/>
+<rect x="154.1" y="44" width="3.9" height="160" rx="1" class="sv-void"/>
+<rect x="159.4" y="44" width="3.9" height="160" rx="1" class="sv-void"/>
+<rect x="164.8" y="44" width="3.9" height="160" rx="1" class="sv-void"/>
+<rect x="170.1" y="44" width="3.9" height="160" rx="1" class="sv-void"/>
+<rect x="175.4" y="44" width="3.9" height="160" rx="1" class="sv-void"/>
+<rect x="180.7" y="44" width="3.9" height="160" rx="1" class="sv-void"/>
+<rect x="16" y="44" width="170" height="160" class="sv-box"/>
+<polyline class="sv-zoom" points="19.9,44 250,44 "/>
+<polyline class="sv-zoom" points="19.9,204 250,204 "/>
+<rect x="250" y="44.0" width="170" height="7.8" rx="1" class="sv-void"/>
+<rect x="321.4" y="44.0" width="18.7" height="7.8" fill="var(--hit)"/>
+<rect x="250" y="54.0" width="170" height="7.8" rx="1" class="sv-void"/>
+<rect x="321.4" y="54.0" width="18.7" height="7.8" fill="var(--hit)"/>
+<rect x="250" y="64.0" width="170" height="7.8" rx="1" class="sv-void"/>
+<rect x="321.4" y="64.0" width="18.7" height="7.8" fill="var(--hit)"/>
+<rect x="250" y="74.0" width="170" height="7.8" rx="1" class="sv-void"/>
+<rect x="321.4" y="74.0" width="18.7" height="7.8" fill="var(--hit)"/>
+<rect x="250" y="84.0" width="170" height="7.8" rx="1" class="sv-void"/>
+<rect x="321.4" y="84.0" width="18.7" height="7.8" fill="var(--hit)"/>
+<rect x="250" y="94.0" width="170" height="7.8" rx="1" class="sv-void"/>
+<rect x="321.4" y="94.0" width="18.7" height="7.8" fill="var(--hit)"/>
+<rect x="250" y="104.0" width="170" height="7.8" rx="1" class="sv-void"/>
+<rect x="321.4" y="104.0" width="18.7" height="7.8" fill="var(--hit)"/>
+<rect x="250" y="114.0" width="170" height="7.8" rx="1" class="sv-void"/>
+<rect x="321.4" y="114.0" width="18.7" height="7.8" fill="var(--hit)"/>
+<rect x="250" y="124.0" width="170" height="7.8" rx="1" class="sv-void"/>
+<rect x="321.4" y="124.0" width="18.7" height="7.8" fill="var(--hit)"/>
+<rect x="250" y="134.0" width="170" height="7.8" rx="1" class="sv-void"/>
+<rect x="321.4" y="134.0" width="18.7" height="7.8" fill="var(--hit)"/>
+<rect x="250" y="144.0" width="170" height="7.8" rx="1" class="sv-void"/>
+<rect x="321.4" y="144.0" width="18.7" height="7.8" fill="var(--hit)"/>
+<rect x="250" y="154.0" width="170" height="7.8" rx="1" class="sv-void"/>
+<rect x="321.4" y="154.0" width="18.7" height="7.8" fill="var(--hit)"/>
+<rect x="250" y="164.0" width="170" height="7.8" rx="1" class="sv-void"/>
+<rect x="321.4" y="164.0" width="18.7" height="7.8" fill="var(--hit)"/>
+<rect x="250" y="174.0" width="170" height="7.8" rx="1" class="sv-void"/>
+<rect x="321.4" y="174.0" width="18.7" height="7.8" fill="var(--hit)"/>
+<rect x="250" y="184.0" width="170" height="7.8" rx="1" class="sv-void"/>
+<rect x="321.4" y="184.0" width="18.7" height="7.8" fill="var(--hit)"/>
+<rect x="250" y="194.0" width="170" height="7.8" rx="1" class="sv-void"/>
+<rect x="321.4" y="194.0" width="18.7" height="7.8" fill="var(--hit)"/>
+<rect x="250" y="44" width="170" height="160" class="sv-box"/>
+<text class="sv-lbl-s" x="331" y="38" text-anchor="middle" fill="var(--hit)">row R</text>
+<line x1="331" y1="41" x2="331" y2="44" stroke="var(--hit)"/>
+<polyline class="sv-zoom" points="420,44.0 484,44"/>
+<polyline class="sv-zoom" points="420,51.8 484,204"/>
+<rect x="484" y="44.0" width="170" height="4.6" class="sv-void"/>
+<rect x="484" y="50.2" width="170" height="4.6" class="sv-void"/>
+<rect x="484" y="56.3" width="170" height="4.6" class="sv-void"/>
+<rect x="484" y="62.5" width="170" height="4.6" class="sv-void"/>
+<rect x="484" y="68.6" width="170" height="4.6" class="sv-void"/>
+<rect x="484" y="74.8" width="170" height="4.6" class="sv-void"/>
+<rect x="484" y="80.9" width="170" height="4.6" class="sv-void"/>
+<rect x="484" y="87.1" width="170" height="4.6" class="sv-void"/>
+<rect x="484" y="93.2" width="170" height="4.6" class="sv-void"/>
+<rect x="484" y="99.4" width="170" height="4.6" class="sv-void"/>
+<rect x="484" y="105.5" width="170" height="4.6" class="sv-void"/>
+<rect x="484" y="111.7" width="170" height="4.6" fill="var(--hit)"/>
+<rect x="484" y="117.8" width="170" height="4.6" class="sv-void"/>
+<rect x="484" y="124.0" width="170" height="4.6" class="sv-void"/>
+<rect x="484" y="130.2" width="170" height="4.6" class="sv-void"/>
+<rect x="484" y="136.3" width="170" height="4.6" class="sv-void"/>
+<rect x="484" y="142.5" width="170" height="4.6" class="sv-void"/>
+<rect x="484" y="148.6" width="170" height="4.6" class="sv-void"/>
+<rect x="484" y="154.8" width="170" height="4.6" class="sv-void"/>
+<rect x="484" y="160.9" width="170" height="4.6" class="sv-void"/>
+<rect x="484" y="167.1" width="170" height="4.6" class="sv-void"/>
+<rect x="484" y="173.2" width="170" height="4.6" class="sv-void"/>
+<rect x="484" y="179.4" width="170" height="4.6" class="sv-void"/>
+<rect x="484" y="185.5" width="170" height="4.6" class="sv-void"/>
+<rect x="484" y="191.7" width="170" height="4.6" class="sv-void"/>
+<rect x="484" y="197.8" width="170" height="4.6" class="sv-void"/>
+<rect x="484" y="44" width="170" height="160" class="sv-box"/>
+<text class="sv-lbl-s" x="660" y="115.7" fill="var(--hit)">R</text>
+<polyline class="sv-zoom" points="654,111.7 718,110"/>
+<polyline class="sv-zoom" points="654,116.2 718,140"/>
+<rect x="718.0" y="110" width="4.7" height="30" fill="var(--hit)"/>
+<rect x="723.8" y="110" width="4.7" height="30" class="sv-void"/>
+<rect x="729.6" y="110" width="4.7" height="30" class="sv-void"/>
+<rect x="735.4" y="110" width="4.7" height="30" class="sv-void"/>
+<rect x="741.2" y="110" width="4.7" height="30" class="sv-void"/>
+<rect x="747.1" y="110" width="4.7" height="30" class="sv-void"/>
+<rect x="752.9" y="110" width="4.7" height="30" class="sv-void"/>
+<rect x="758.7" y="110" width="4.7" height="30" class="sv-void"/>
+<rect x="764.5" y="110" width="4.7" height="30" class="sv-void"/>
+<rect x="770.3" y="110" width="4.7" height="30" class="sv-void"/>
+<rect x="776.1" y="110" width="4.7" height="30" class="sv-void"/>
+<rect x="781.9" y="110" width="4.7" height="30" class="sv-void"/>
+<rect x="787.8" y="110" width="4.7" height="30" class="sv-void"/>
+<rect x="793.6" y="110" width="4.7" height="30" class="sv-void"/>
+<rect x="799.4" y="110" width="4.7" height="30" class="sv-void"/>
+<rect x="805.2" y="110" width="4.7" height="30" class="sv-void"/>
+<rect x="811.0" y="110" width="4.7" height="30" class="sv-void"/>
+<rect x="816.8" y="110" width="4.7" height="30" class="sv-void"/>
+<rect x="822.6" y="110" width="4.7" height="30" class="sv-void"/>
+<rect x="828.4" y="110" width="4.7" height="30" class="sv-void"/>
+<rect x="834.2" y="110" width="4.7" height="30" class="sv-void"/>
+<rect x="840.1" y="110" width="4.7" height="30" class="sv-void"/>
+<rect x="845.9" y="110" width="4.7" height="30" class="sv-void"/>
+<rect x="851.7" y="110" width="4.7" height="30" class="sv-void"/>
+<rect x="857.5" y="110" width="4.7" height="30" class="sv-void"/>
+<rect x="863.3" y="110" width="4.7" height="30" class="sv-void"/>
+<rect x="869.1" y="110" width="4.7" height="30" class="sv-void"/>
+<rect x="874.9" y="110" width="4.7" height="30" class="sv-void"/>
+<rect x="880.8" y="110" width="4.7" height="30" class="sv-void"/>
+<rect x="886.6" y="110" width="4.7" height="30" class="sv-void"/>
+<rect x="892.4" y="110" width="4.7" height="30" class="sv-void"/>
+<rect x="898.2" y="110" width="4.7" height="30" class="sv-void"/>
+<rect x="718" y="110" width="186" height="30" class="sv-box"/>
+<text class="sv-lbl-s" x="718" y="156">32 B</text>
+<line x1="718" y1="146" x2="722.7" y2="146" stroke="var(--hit)" stroke-width="2"/>
+<line x1="250" y1="266" x2="654" y2="266" class="sv-rule" marker-end="url(#ar)"/>
+<text class="sv-num" x="250" y="284">row-group = row R in all 16 banks of one channel = <tspan fill="var(--hit)">16 KB</tspan></text>
+<text class="sv-num" x="718" y="284">1 burst x 16 banks = <tspan fill="var(--hit)">512 B</tspan></text>
+</g></svg></div>
+</div>
+<figcaption>Every quantity in this article is a ratio between two levels of this picture. The <strong>row-group</strong> &mdash; one row index held open across all 16 banks of a channel &mdash; is 16 KB, and it is the unit an allocator has to respect. An <strong>all-bank command</strong> takes one 32 B burst out of each of those 16 banks at once: 512 B, in one <span class="mono">tCCD_ab</span> interval.</figcaption>
+</figure>
+  <p>The model shape is Llama-3-class GQA: 8 KV heads × 128 dim × fp16 = <span class="mono num">4096 B</span> of K+V per token per layer. So a 16-token block is 64 KB, which — spread across 32 channels — is a <strong class="mono num">2 KB</strong> slice per channel. That is <strong>one eighth of a row-group</strong>. Hold onto that fraction; it is the root of every number in this article.</p>
+  <p>Run the same arithmetic backwards and you get the block size the hardware actually wants: one full row-group in every channel is <span class="mono num">1024 × 16 × 32 / 4096 = 128 tokens</span>. The code computes it rather than hardcoding it (<code>config.derive_block_tokens</code>). The serving community converged on 16.</p>
+
+  <figure>
+<div class="dgm">
+<div class="dgmttl">What a row miss actually costs</div>
+<div class="dgmsub">220 ns of one channel&#39;s all-bank command stream, drawn to scale &middot; <span style="color:var(--miss)">amber</span> = 45 ns row cycle &middot; <span style="color:var(--hit)">blue</span> = 4.3 ns column read</div>
+<div class="scroll"><svg style="min-width:900px" viewBox="0 0 1000 292" role="img" aria-label="Time-scaled comparison of all-bank command cadence at four row-hit rates over a 220 nanosecond window: the ideal case fits 51 commands, M1 0.969 fits 39.5, M1 0.75 fits 15.2, M1 0 fits 4.9">
+<g>
+<text class="sv-lbl-s" x="208" y="20">0 ns</text>
+<text class="sv-lbl-s" x="383.5" y="20" text-anchor="middle">50</text>
+<line x1="383.5" y1="24" x2="383.5" y2="272" stroke="var(--grid)" stroke-width="1"/>
+<text class="sv-lbl-s" x="558.9" y="20" text-anchor="middle">100</text>
+<line x1="558.9" y1="24" x2="558.9" y2="272" stroke="var(--grid)" stroke-width="1"/>
+<text class="sv-lbl-s" x="734.4" y="20" text-anchor="middle">150</text>
+<line x1="734.4" y1="24" x2="734.4" y2="272" stroke="var(--grid)" stroke-width="1"/>
+<text class="sv-lbl-s" x="909.8" y="20" text-anchor="middle">200</text>
+<line x1="909.8" y1="24" x2="909.8" y2="272" stroke="var(--grid)" stroke-width="1"/>
+<text class="sv-ttl" x="0" y="47">ideal</text>
+<text class="sv-lbl-s" x="0" y="61">row never closes</text>
+<rect x="208.00" y="34" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="223.09" y="34" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="238.18" y="34" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="253.27" y="34" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="268.36" y="34" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="283.45" y="34" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="298.53" y="34" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="313.62" y="34" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="328.71" y="34" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="343.80" y="34" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="358.89" y="34" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="373.98" y="34" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="389.07" y="34" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="404.16" y="34" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="419.25" y="34" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="434.34" y="34" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="449.43" y="34" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="464.51" y="34" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="479.60" y="34" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="494.69" y="34" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="509.78" y="34" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="524.87" y="34" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="539.96" y="34" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="555.05" y="34" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="570.14" y="34" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="585.23" y="34" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="600.32" y="34" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="615.41" y="34" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="630.49" y="34" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="645.58" y="34" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="660.67" y="34" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="675.76" y="34" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="690.85" y="34" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="705.94" y="34" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="721.03" y="34" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="736.12" y="34" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="751.21" y="34" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="766.30" y="34" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="781.39" y="34" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="796.47" y="34" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="811.56" y="34" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="826.65" y="34" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="841.74" y="34" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="856.83" y="34" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="871.92" y="34" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="887.01" y="34" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="902.10" y="34" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="917.19" y="34" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="932.28" y="34" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="947.37" y="34" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="962.45" y="34" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="977.54" y="34" width="1.06" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<text class="sv-num" x="208" y="72">51.2 commands &#183; 3,810 GB/s across 32 channels &#183; 100% of ideal <tspan class="sv-lbl-s">&#183; hypothetical</tspan></text>
+<text class="sv-ttl" x="0" y="109">M1 = 0.969</text>
+<text class="sv-lbl-s" x="0" y="123">contiguous, or 128-token blocks</text>
+<rect x="208.00" y="96" width="156.51" height="24" rx="1.5" fill="var(--miss)"><title>row cycle, 45 ns</title></rect>
+<rect x="365.91" y="96" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="381.00" y="96" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="396.09" y="96" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="411.18" y="96" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="426.27" y="96" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="441.35" y="96" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="456.44" y="96" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="471.53" y="96" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="486.62" y="96" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="501.71" y="96" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="516.80" y="96" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="531.89" y="96" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="546.98" y="96" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="562.07" y="96" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="577.16" y="96" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="592.25" y="96" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="607.33" y="96" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="622.42" y="96" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="637.51" y="96" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="652.60" y="96" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="667.69" y="96" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="682.78" y="96" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="697.87" y="96" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="712.96" y="96" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="728.05" y="96" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="743.14" y="96" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="758.23" y="96" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="773.31" y="96" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="788.40" y="96" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="803.49" y="96" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="818.58" y="96" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="833.67" y="96" width="144.93" height="24" rx="1.5" fill="var(--miss)"><title>row cycle, 45 ns</title></rect>
+<text class="sv-num" x="208" y="134">39.5 commands &#183; 2,940 GB/s across 32 channels &#183; 77% of ideal <tspan class="sv-lbl-s">&#183; 1 ACT per 32 commands</tspan></text>
+<text class="sv-ttl" x="0" y="171">M1 = 0.750</text>
+<text class="sv-lbl-s" x="0" y="185">paged, 16-token blocks</text>
+<rect x="208.00" y="158" width="156.51" height="24" rx="1.5" fill="var(--miss)"><title>row cycle, 45 ns</title></rect>
+<rect x="365.91" y="158" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="381.00" y="158" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="396.09" y="158" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="411.18" y="158" width="156.51" height="24" rx="1.5" fill="var(--miss)"><title>row cycle, 45 ns</title></rect>
+<rect x="569.09" y="158" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="584.17" y="158" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="599.26" y="158" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="614.35" y="158" width="156.51" height="24" rx="1.5" fill="var(--miss)"><title>row cycle, 45 ns</title></rect>
+<rect x="772.26" y="158" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="787.35" y="158" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="802.44" y="158" width="13.69" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<rect x="817.53" y="158" width="156.51" height="24" rx="1.5" fill="var(--miss)"><title>row cycle, 45 ns</title></rect>
+<rect x="975.44" y="158" width="3.16" height="24" rx="1.5" fill="var(--hit)"><title>column read, 4.3 ns</title></rect>
+<text class="sv-num" x="208" y="196">15.2 commands &#183; 1,132 GB/s across 32 channels &#183; 30% of ideal <tspan class="sv-lbl-s">&#183; 1 ACT per 4 commands</tspan></text>
+<text class="sv-ttl" x="0" y="233">M1 = 0.000</text>
+<text class="sv-lbl-s" x="0" y="247">every command a new row</text>
+<rect x="208.00" y="220" width="156.51" height="24" rx="1.5" fill="var(--miss)"><title>row cycle, 45 ns</title></rect>
+<rect x="365.91" y="220" width="156.51" height="24" rx="1.5" fill="var(--miss)"><title>row cycle, 45 ns</title></rect>
+<rect x="523.82" y="220" width="156.51" height="24" rx="1.5" fill="var(--miss)"><title>row cycle, 45 ns</title></rect>
+<rect x="681.73" y="220" width="156.51" height="24" rx="1.5" fill="var(--miss)"><title>row cycle, 45 ns</title></rect>
+<rect x="839.64" y="220" width="138.96" height="24" rx="1.5" fill="var(--miss)"><title>row cycle, 45 ns</title></rect>
+<text class="sv-num" x="208" y="258">4.9 commands &#183; 364 GB/s across 32 channels &#183; 10% of ideal <tspan class="sv-lbl-s">&#183; the failure mode PIM papers assume away</tspan></text>
+</g></svg></div>
+</div>
+<figcaption>This is the whole of M3, drawn: the amber blocks are <span class="mono">tRC</span>, and every one of them is 10.5 column reads wide. Dropping M1 from 0.969 to 0.750 does not cost 22% of your bandwidth &mdash; it costs 61%, because the misses you added are the expensive kind. The bandwidth numbers here are the same formula the harness uses, evaluated at each row-hit rate.</figcaption>
+</figure>
+</div>
+</section>
+
+<!-- ========================= 0x13 ========================= -->
+<section>
+<div class="wrap">
+  <div class="sechead"><div class="addr">0x13</div><div><h2>The hidden variable: the address map</h2></div></div>
+  <p class="sub">We went in thinking the allocator was the independent variable. It is not the only one. The memory controller's interleaving scheme decides, before the allocator gets a vote, whether scattered placement even matters.</p>
+
+  <p>Each scheme is a bit layout over a 28-bit linear burst address. Read these right-to-left, LSB first — the field sitting on the low bits is the one that changes as you walk consecutive addresses.</p>
+  <p>The layouts below are the ones the harness actually implements. If bit patterns are not how you think, skip to the grid underneath them &mdash; it walks a real block through each map and shows you where the bursts land.</p>
+
+  <div class="scroll">
+    <div class="ruler">
+      <div class="nm">host-centric &nbsp;<span style="color:var(--ink-3)">ro : bg : ba : ch : co</span></div>
+      <div class="bits">
+        <span class="f-ro" style="flex-grow:14">row [27:14]</span>
+        <span class="f-bk" style="flex-grow:2">bg</span>
+        <span class="f-bk" style="flex-grow:2">ba</span>
+        <span class="f-ch" style="flex-grow:5">ch [9:5]</span>
+        <span class="f-co" style="flex-grow:5">col [4:0]</span>
+      </div>
+      <p class="cap">The map named in the brief. All 5 column bits are lowest, so inside one channel a contiguous stream sweeps <em>an entire row of one bank</em> before it ever touches the next bank. Rows stay wide open. Bank parallelism dies.</p>
+    </div>
+
+    <div class="ruler">
+      <div class="nm">host-cacheline &nbsp;<span style="color:var(--ink-3)">ro : co_hi : bg : ba : ch : co_lo</span></div>
+      <div class="bits">
+        <span class="f-ro" style="flex-grow:14">row [27:14]</span>
+        <span class="f-co" style="flex-grow:4">col_hi</span>
+        <span class="f-bk" style="flex-grow:2">bg</span>
+        <span class="f-bk" style="flex-grow:2">ba</span>
+        <span class="f-ch" style="flex-grow:5">ch [5:1]</span>
+        <span class="f-co" style="flex-grow:1">c</span>
+      </div>
+      <p class="cap">What a real memory controller does: interleave 64 B cachelines across channels, then put the bank bits immediately above them to maximise bank-level parallelism for scattered host traffic. Banks interleave beautifully. Rows now fragment with placement.</p>
+    </div>
+
+    <div class="ruler">
+      <div class="nm">pim-friendly &nbsp;<span style="color:var(--ink-3)">ch : ro : co : bg : ba</span></div>
+      <div class="bits">
+        <span class="f-ch" style="flex-grow:5">ch [27:23]</span>
+        <span class="f-ro" style="flex-grow:14">row [22:9]</span>
+        <span class="f-co" style="flex-grow:5">col [8:4]</span>
+        <span class="f-bk" style="flex-grow:2">bg</span>
+        <span class="f-bk" style="flex-grow:2">ba</span>
+      </div>
+      <p class="cap">Bank bits lowest: 16 consecutive bursts land in 16 distinct banks at the same (row, column) — exactly one all-bank command. Each channel owns one huge contiguous slab. This is what PIM-attention papers assume, and it is not what hosts do.</p>
+    </div>
+  </div>
+
+  <div class="legend">
+    <span><i class="f-ro"></i>row</span><span><i class="f-co"></i>column</span><span><i class="f-ch"></i>channel</span><span><i class="f-bk"></i>bank / bank-group</span>
+  </div>
+
+  <figure>
+  <div class="dgm">
+    <div class="dgmttl">One block, walked through the map</div>
+    <div class="dgmsub">where the bursts of a single KV block actually land inside one pseudo-channel</div>
+    <div class="ctrls" style="margin-bottom:18px">
+      <div>
+        <label class="f" for="wkMap">Address map</label>
+        <select id="wkMap">
+          <option value="host-centric">host-centric</option>
+          <option value="host-cacheline">host-cacheline</option>
+          <option value="pim-friendly">pim-friendly</option>
+        </select>
+      </div>
+      <div>
+        <label class="f" for="wkBt">Block tokens <span class="val" id="wkBtV">16</span></label>
+        <input type="range" id="wkBt" min="0" max="5" step="1" value="2">
+      </div>
+      <div>
+        <label class="f" for="wkRev">Bursts walked <span class="val" id="wkRevV">all</span></label>
+        <input type="range" id="wkRev" min="1" max="100" step="1" value="100">
+      </div>
+    </div>
+    <div class="scroll"><svg id="wkSvg" role="img" aria-label="Grid of the DRAM rows and banks that one KV block touches inside a single pseudo-channel, with each cell filled in proportion to how many of that row's 32 columns the block occupies in that bank"></svg></div>
+    <div class="out">
+      <div><span>banks per command</span><b id="wkBanks">&mdash;</b><small>of 16 in the channel</small></div>
+      <div><span>rows opened</span><b id="wkRows">&mdash;</b><small id="wkRowsN">per block, per channel</small></div>
+      <div><span>all-bank commands</span><b id="wkCmds">&mdash;</b><small id="wkHits"></small></div>
+      <div><span>M1 &#183; M2 here</span><b id="wkM12">&mdash;</b><small>this channel, this block</small></div>
+    </div>
+    <p id="wkVerdict" style="font-size:14.5px;color:var(--ink-2);margin:16px 0 0;max-width:none"></p>
+  </div>
+  <figcaption>Each cell is one (row, bank) pair; its fill is how many of that row&#39;s 32 column slots the block occupies in that bank. <strong>host-centric</strong> pours the whole block down two banks &mdash; the other fourteen MAC units have nothing to do, which is M2 = 0.124. <strong>host-cacheline</strong> spreads it across all sixteen but only quarter-fills each row, so the block is four commands and one activation. <strong>pim-friendly</strong> keeps the entire block in one channel and fills whole row-groups. Computed live by the same address-map and coalescing code the harness runs.</figcaption>
+  </figure>
+
+
+  <div class="key">
+    <p>The two host maps fail PIM in <strong>opposite directions</strong>. <code>host-centric</code> keeps rows open and destroys bank parallelism. <code>host-cacheline</code> keeps banks busy and lets rows fragment. A project that had only measured M1 would have seen the first configuration as healthy.</p>
+  </div>
+</div>
+</section>
+
+<!-- ========================= 0x14 ========================= -->
+<section>
+<div class="wrap">
+  <div class="sechead"><div class="addr">0x14</div><div><h2>Five gates before any number counts</h2></div></div>
+  <p class="sub">49 pytest tests, all green, including the five validation gates the brief required. Two of them did not pass as literally written, and the honest version of each is worth more than the clean version.</p>
+
+  <div class="scroll"><table>
+    <thead><tr><th style="width:34px"></th><th>Gate</th><th>Required</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">1</td><td>Perfect-case anchor</td><td>contiguous + pim-friendly map ⇒ M1 ≥ 0.95</td><td><span class="status s-done">pass</span> — measures <span class="mono num">0.969</span>, which is exactly <span class="mono">1 − 1/32</span>: one ACT per row-group, then 31 hits. That is the geometric ceiling for 1 KB rows and 32 B bursts, so 0.95 is the right bar.</td></tr>
+      <tr><td class="mono">2</td><td>Worst-case anchor</td><td>random placement ⇒ M1 ≈ 1/rows within 2×</td><td><span class="status s-open">pass, reinterpreted</span> — see below.</td></tr>
+      <tr><td class="mono">3</td><td>Monotonicity</td><td>M1 non-decreasing in block size, contiguous allocator</td><td><span class="status s-done">pass</span> — but it degenerates: a contiguous span is contiguous at any granularity, so M1 is essentially block-size-invariant here. The gate really only proves no aliasing bug makes it <em>decrease</em>.</td></tr>
+      <tr><td class="mono">4</td><td>Determinism</td><td>same seed ⇒ byte-identical CSV</td><td><span class="status s-done">pass</span></td></tr>
+      <tr><td class="mono">5</td><td>Conservation</td><td>allocated − freed == live, every step, every policy</td><td><span class="status s-done">pass</span> — asserted inside the allocator every step</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Why gate 2 needed a footnote</h3>
+  <p>The gate says random placement should drive M1 down to roughly <span class="mono">1/rows_per_bank</span> = 1/512 for the test geometry. Two things get in the way, and both are real behaviour rather than bugs:</p>
+  <ol>
+    <li><strong>A coalescing controller merges away the very coincidences the heuristic counts.</strong> When two adjacent bursts happen to share a row, a windowed controller folds them into one command instead of scoring a hit. So the strict factor-of-2 check runs on a single-bank stream, where merging is impossible and every burst is its own command. There it lands within 2× of 1/512. ✓</li>
+    <li><strong>With random banks and a 64-burst window, coincidental same-(row, bank) pairs legitimately produce ~3/rows.</strong> That is bounded as a looser secondary check (≤ 8/rows) rather than hidden.</li>
+  </ol>
+  <p>Both are documented in the test docstring and flagged to the owner, because the brief explicitly said not to reinterpret a gate silently. A gate you quietly loosen is not a gate.</p>
+</div>
+</section>
+
+<!-- ========================= 0x15 ========================= -->
+<section>
+<div class="wrap">
+  <div class="sechead"><div class="addr">0x15</div><div><h2>The kill test</h2></div></div>
+  <p class="sub">Steady workload, 2000 requests, seed 0, HBM3-PIM, 16-token blocks, max batch 64, 64-burst reorder window. Five configurations bracketing the question, plus two block-size probes. Every row below is a real run; the commands are in the Makefile and the raw CSVs are in <code>results/phase0/</code>.</p>
+
+  <div class="scroll"><table>
+    <thead><tr>
+      <th>allocator / address map</th>
+      <th class="n">M1</th><th class="n">M2</th><th class="n">M3 GB/s</th><th class="n">% of ideal</th>
+    </tr></thead>
+    <tbody>
+      <tr class="hi"><td><strong>paged / host-centric</strong> <span style="color:var(--ink-3)">— the brief's baseline</span></td><td class="n">0.970</td><td class="n">0.124</td><td class="n">368</td><td class="n">9.7%</td></tr>
+      <tr><td><strong>paged / host-cacheline</strong> <span style="color:var(--ink-3)">— realistic host map</span></td><td class="n">0.759</td><td class="n">0.990</td><td class="n">1173</td><td class="n">30.8%</td></tr>
+      <tr><td><strong>contiguous / host-cacheline</strong></td><td class="n">0.958</td><td class="n">0.990</td><td class="n">2719</td><td class="n">71.3%</td></tr>
+      <tr><td><strong>paged / pim-friendly</strong></td><td class="n">0.969</td><td class="n">1.000</td><td class="n">2938</td><td class="n">77.1%</td></tr>
+      <tr><td><strong>contiguous / pim-friendly</strong> <span style="color:var(--ink-3)">— upper anchor</span></td><td class="n">0.969</td><td class="n">1.000</td><td class="n">2938</td><td class="n">77.1%</td></tr>
+    </tbody>
+  </table></div>
+  <p style="font-size:14px;color:var(--ink-2)">Means over 5,081 sampled decode steps (paged) / 5,808 (contiguous). Ideal all-bank bandwidth = 3810 GB/s. The 77.1% ceiling is not a modelling artifact: it is what <span class="mono">M1 = 0.969</span> costs you through the timing factor, since one ACT per 32 commands still has to be paid.</p>
+
+  <figure>
+    <div class="panels3">
+      <div class="chartcard">
+        <div class="ttl" style="color:var(--hit)">M1 — row-hit rate</div>
+        <div class="axs">0 → 1.0 · higher is better</div>
+        <div class="barchart">
+          <div class="lbl">paged / host-centric</div><div class="barrow"><b class="c-hit" style="width:97.0%"></b><em style="left:97.0%">0.970</em></div>
+          <div class="lbl">paged / host-cacheline</div><div class="barrow"><b class="c-hit" style="width:75.9%"></b><em style="left:75.9%">0.759</em></div>
+          <div class="lbl">contig / host-cacheline</div><div class="barrow"><b class="c-hit" style="width:95.8%"></b><em style="left:95.8%">0.958</em></div>
+          <div class="lbl">paged / pim-friendly</div><div class="barrow"><b class="c-hit" style="width:96.9%"></b><em style="left:96.9%">0.969</em></div>
+          <div class="lbl">contig / pim-friendly</div><div class="barrow"><b class="c-hit" style="width:96.9%"></b><em style="left:96.9%">0.969</em></div>
+        </div>
+      </div>
+      <div class="chartcard">
+        <div class="ttl" style="color:var(--miss)">M2 — bank parallelism</div>
+        <div class="axs">0 → 1.0 · higher is better</div>
+        <div class="barchart">
+          <div class="lbl">paged / host-centric</div><div class="barrow"><b class="c-miss" style="width:12.4%"></b><em style="left:12.4%">0.124</em></div>
+          <div class="lbl">paged / host-cacheline</div><div class="barrow"><b class="c-miss" style="width:99.0%"></b><em style="left:74%;color:#fff">0.990</em></div>
+          <div class="lbl">contig / host-cacheline</div><div class="barrow"><b class="c-miss" style="width:99.0%"></b><em style="left:74%;color:#fff">0.990</em></div>
+          <div class="lbl">paged / pim-friendly</div><div class="barrow"><b class="c-miss" style="width:100%"></b><em style="left:74%;color:#fff">1.000</em></div>
+          <div class="lbl">contig / pim-friendly</div><div class="barrow"><b class="c-miss" style="width:100%"></b><em style="left:74%;color:#fff">1.000</em></div>
+        </div>
+      </div>
+      <div class="chartcard">
+        <div class="ttl" style="color:var(--recover)">M3 — effective bandwidth</div>
+        <div class="axs">0 → 3810 GB/s ideal</div>
+        <div class="barchart">
+          <div class="lbl">paged / host-centric</div><div class="barrow"><b class="c-rec" style="width:9.7%"></b><em style="left:9.7%">368</em></div>
+          <div class="lbl">paged / host-cacheline</div><div class="barrow"><b class="c-rec" style="width:30.8%"></b><em style="left:30.8%">1173</em></div>
+          <div class="lbl">contig / host-cacheline</div><div class="barrow"><b class="c-rec" style="width:71.3%"></b><em style="left:71.3%">2719</em></div>
+          <div class="lbl">paged / pim-friendly</div><div class="barrow"><b class="c-rec" style="width:77.1%"></b><em style="left:77.1%">2938</em></div>
+          <div class="lbl">contig / pim-friendly</div><div class="barrow"><b class="c-rec" style="width:77.1%"></b><em style="left:77.1%">2938</em></div>
+        </div>
+      </div>
+    </div>
+    <figcaption>Three views of the same five runs. Reading M1 alone (left panel) says the top configuration is the healthiest one on the board. Reading M3 (right panel) says it is the worst by a factor of three. M2 is where the disagreement lives.</figcaption>
+  </figure>
+
+  <div class="verdict">
+    <h4>Verdict per the brief's stop rule</h4>
+    <p style="margin-bottom:10px"><strong>STOPPED.</strong> The rule was: M1 &gt; 0.7 ⇒ stop and tell the owner. Baseline M1 is <span class="mono num">0.970</span> on the brief's host-centric map and <span class="mono num">0.759</span> on the realistic one. Neither is "under 0.3". Reported as measured, no rationalising, no hunting for a workload that makes it look worse.</p>
+    <p style="margin-bottom:0">The premise as <em>written</em> — "paged allocation destroys the row-hit rate" — did not survive contact with the harness. What survived is narrower, and it is real.</p>
+  </div>
+
+  <h3>What the runs actually show</h3>
+  <ol>
+    <li><strong>The brief's baseline loses its 10× through the wrong metric.</strong> host-centric gets 9.7% of ideal bandwidth with a <em>healthy</em> M1 of 0.97. The damage is entirely M2 = 0.124 — whole-row-per-bank sweeps serialise the banks. With a 64-burst window touching 2 of 16 banks, 2/16 = 0.125. The measurement lands on the arithmetic. The kill criterion was aimed at the wrong number for this map.</li>
+    <li><strong>Under the pim-friendly map, paged ≡ contiguous.</strong> Both hit 0.969 / 1.000 / 2938 GB/s — identical to three decimal places, because a 16-token block there is four whole row-groups inside one channel. Scatter is harmless. <em>No allocator story exists in that regime at all.</em></li>
+    <li><strong>The recoverable gap lives in exactly one place:</strong> where a block's per-channel slice is smaller than a row-group. At 16 tokens that slice is 2 KB against a 16 KB row-group, and there paged (0.759 / 1173 GB/s) versus contiguous (0.958 / 2719 GB/s) is <strong>2.3× from placement alone</strong>.</li>
+  </ol>
+
+  <figure>
+    <div class="chartcard">
+      <div class="ttl">Distribution of per-decode-step M1 — host-cacheline map</div>
+      <div class="axs">5,081 paged samples vs 5,808 contiguous samples · 25 bins</div>
+      <div class="scroll"><svg id="histSvg" viewBox="0 0 620 220" role="img" aria-label="Two histograms of per-decode-step row-hit rate: paged concentrated near 0.72, contiguous concentrated near 0.97"></svg></div>
+    </div>
+    <figcaption>This is not a wide, noisy distribution around a mean. 87% of paged samples sit in a single bin near 0.72–0.76, and the contiguous run piles up against its 0.969 ceiling. Both allocators produce an almost deterministic row-hit rate — which is the first hint that these numbers are geometry, not luck.</figcaption>
+  </figure>
+</div>
+</section>
+
+<!-- ========================= 0x16 ========================= -->
+<section>
+<div class="wrap">
+  <div class="sechead"><div class="addr">0x16</div><div><h2>Why those exact numbers</h2></div></div>
+  <p class="sub">0.970, 0.124, 0.759, 0.969. None of these are empirical accidents. Every one falls out of the bit layout, and once you see the rule you can predict the whole sweep before running it.</p>
+
+  <p>Take the <code>host-cacheline</code> map. A 16-token block is 64 KB of contiguous linear address space, or 2048 bursts — bits 0 through 10. The row field starts at bit 14. So <strong>an entire block sits inside one row index</strong>, and it needs</p>
+
+  <pre><span class="c">// commands one block costs, per channel</span>
+block_bytes / channels / (banks × burst_bytes)
+  = 65536 / 32 / (16 × 32)
+  = <span class="k">4 commands</span>   <span class="c">— all at the same row</span></pre>
+
+  <p>Four commands, one ACT, three hits. <strong class="mono num">M1 = 3/4 = 0.75</strong>. The measured value is 0.759; the extra 0.009 is the LIFO free list occasionally handing out two adjacent block ids in a row. That is the whole result.</p>
+
+  <p>Generalise it. For scattered blocks whose neighbours share no row:</p>
+
+  <div class="key">
+    <p style="margin-bottom:6px"><strong class="mono">M1 ≈ 1 − 1/k</strong>, &nbsp; where <strong class="mono">k = block_tokens × kv_bytes_per_token / (channels × banks × burst_bytes)</strong> is the number of all-bank commands one block costs per channel — capped at <span class="mono">1 − 1/cols_per_row = 0.969</span> once a block covers a whole row-group.</p>
+    <p style="margin-bottom:0;font-size:15px;color:var(--ink-2)">For this configuration <span class="mono">k = block_tokens / 4</span>: &nbsp; 16 tokens → 0.750 &nbsp;·&nbsp; 32 → 0.875 &nbsp;·&nbsp; 64 → 0.938 &nbsp;·&nbsp; 128 → 0.969.</p>
+  </div>
+
+  <p>And the two block-size probes we ran (500 requests, seed 0, paged, host-cacheline) land on it:</p>
+
+  <div class="scroll"><table>
+    <thead><tr><th>block_tokens</th><th class="n">per-channel slice</th><th class="n">predicted M1</th><th class="n">measured M1</th><th class="n">measured M2</th><th class="n">M3 GB/s</th><th class="n">% ideal</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">4</td><td class="n">512 B</td><td class="n" style="color:var(--ink-3)">law breaks down</td><td class="n">0.571</td><td class="n">0.566</td><td class="n">508</td><td class="n">13.3%</td></tr>
+      <tr class="hi"><td class="mono">16 <span style="color:var(--ink-3)">(vLLM default)</span></td><td class="n">2 KB</td><td class="n">0.750</td><td class="n">0.759</td><td class="n">0.990</td><td class="n">1173</td><td class="n">30.8%</td></tr>
+      <tr><td class="mono">128 <span style="color:var(--recover)">(derived)</span></td><td class="n">16 KB = 1 row-group</td><td class="n">0.969</td><td class="n">0.963</td><td class="n">0.989</td><td class="n">2795</td><td class="n">73.4%</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>At 4 tokens the block's per-channel slice is 512 B — exactly <em>one</em> all-bank command — so the "hits after the first ACT" term vanishes and the law would predict zero. It measures 0.571 instead, because at that granularity the 64-burst reorder window spans four consecutive blocks and the LIFO free list keeps handing out consecutive ids. M2 also falls to 0.566: there is no longer enough of a block in one channel to spread across 16 banks. Below the row-group boundary, <em>both</em> mechanisms degrade at once.</p>
+
+  <figure>
+<div class="dgm">
+<div class="dgmttl">Where the 2.3&#215; comes from <span class="tag" style="margin-left:8px">schematic</span></div>
+<div class="dgmsub">64 physical blocks of the KV pool, host-cacheline map, 16-token blocks</div>
+<div class="scroll"><svg style="min-width:1060px" viewBox="0 0 1300 250" role="img" aria-label="Two physical pool strips of 64 blocks grouped into eight row-groups of eight. Contiguous placement puts all eight of a sequence's blocks inside one row-group, costing one activation. Paged placement spreads them one per row-group, costing eight.">
+<g>
+<text class="sv-lbl" x="150" y="14">row-group boundary every 8 blocks &#183; 512 KB of linear KV address space &#183; one row index</text>
+<text class="sv-ttl" x="0" y="50">contiguous</text>
+<text class="sv-lbl-s" x="0" y="64">one span per sequence</text>
+<rect x="147" y="33" width="148" height="36" rx="2" fill="none" stroke="var(--rule)" stroke-width="1"/>
+<rect x="150" y="38" width="16" height="26" rx="1.5" class="sv-void"><title>block 0 &#183; another sequence</title></rect>
+<rect x="168" y="38" width="16" height="26" rx="1.5" class="sv-void"><title>block 1 &#183; another sequence</title></rect>
+<rect x="186" y="38" width="16" height="26" rx="1.5" class="sv-void"><title>block 2 &#183; another sequence</title></rect>
+<rect x="204" y="38" width="16" height="26" rx="1.5" class="sv-void"><title>block 3 &#183; another sequence</title></rect>
+<rect x="222" y="38" width="16" height="26" rx="1.5" class="sv-void"><title>block 4 &#183; another sequence</title></rect>
+<rect x="240" y="38" width="16" height="26" rx="1.5" class="sv-void"><title>block 5 &#183; another sequence</title></rect>
+<rect x="258" y="38" width="16" height="26" rx="1.5" class="sv-void"><title>block 6 &#183; another sequence</title></rect>
+<rect x="276" y="38" width="16" height="26" rx="1.5" class="sv-void"><title>block 7 &#183; another sequence</title></rect>
+<rect x="305" y="33" width="148" height="36" rx="2" fill="none" stroke="var(--rule)" stroke-width="1"/>
+<rect x="308" y="38" width="16" height="26" rx="1.5" class="sv-void"><title>block 8 &#183; another sequence</title></rect>
+<rect x="326" y="38" width="16" height="26" rx="1.5" class="sv-void"><title>block 9 &#183; another sequence</title></rect>
+<rect x="344" y="38" width="16" height="26" rx="1.5" class="sv-void"><title>block 10 &#183; another sequence</title></rect>
+<rect x="362" y="38" width="16" height="26" rx="1.5" class="sv-void"><title>block 11 &#183; another sequence</title></rect>
+<rect x="380" y="38" width="16" height="26" rx="1.5" class="sv-void"><title>block 12 &#183; another sequence</title></rect>
+<rect x="398" y="38" width="16" height="26" rx="1.5" class="sv-void"><title>block 13 &#183; another sequence</title></rect>
+<rect x="416" y="38" width="16" height="26" rx="1.5" class="sv-void"><title>block 14 &#183; another sequence</title></rect>
+<rect x="434" y="38" width="16" height="26" rx="1.5" class="sv-void"><title>block 15 &#183; another sequence</title></rect>
+<rect x="463" y="33" width="148" height="36" rx="2" fill="none" stroke="var(--rule)" stroke-width="1"/>
+<rect x="466" y="38" width="16" height="26" rx="1.5" fill="var(--hit)"><title>block 16 &#183; our sequence</title></rect>
+<rect x="484" y="38" width="16" height="26" rx="1.5" fill="var(--hit)"><title>block 17 &#183; our sequence</title></rect>
+<rect x="502" y="38" width="16" height="26" rx="1.5" fill="var(--hit)"><title>block 18 &#183; our sequence</title></rect>
+<rect x="520" y="38" width="16" height="26" rx="1.5" fill="var(--hit)"><title>block 19 &#183; our sequence</title></rect>
+<rect x="538" y="38" width="16" height="26" rx="1.5" fill="var(--hit)"><title>block 20 &#183; our sequence</title></rect>
+<rect x="556" y="38" width="16" height="26" rx="1.5" fill="var(--hit)"><title>block 21 &#183; our sequence</title></rect>
+<rect x="574" y="38" width="16" height="26" rx="1.5" fill="var(--hit)"><title>block 22 &#183; our sequence</title></rect>
+<rect x="592" y="38" width="16" height="26" rx="1.5" fill="var(--hit)"><title>block 23 &#183; our sequence</title></rect>
+<rect x="621" y="33" width="148" height="36" rx="2" fill="none" stroke="var(--rule)" stroke-width="1"/>
+<rect x="624" y="38" width="16" height="26" rx="1.5" class="sv-void"><title>block 24 &#183; another sequence</title></rect>
+<rect x="642" y="38" width="16" height="26" rx="1.5" class="sv-void"><title>block 25 &#183; another sequence</title></rect>
+<rect x="660" y="38" width="16" height="26" rx="1.5" class="sv-void"><title>block 26 &#183; another sequence</title></rect>
+<rect x="678" y="38" width="16" height="26" rx="1.5" class="sv-void"><title>block 27 &#183; another sequence</title></rect>
+<rect x="696" y="38" width="16" height="26" rx="1.5" class="sv-void"><title>block 28 &#183; another sequence</title></rect>
+<rect x="714" y="38" width="16" height="26" rx="1.5" class="sv-void"><title>block 29 &#183; another sequence</title></rect>
+<rect x="732" y="38" width="16" height="26" rx="1.5" class="sv-void"><title>block 30 &#183; another sequence</title></rect>
+<rect x="750" y="38" width="16" height="26" rx="1.5" class="sv-void"><title>block 31 &#183; another sequence</title></rect>
+<rect x="779" y="33" width="148" height="36" rx="2" fill="none" stroke="var(--rule)" stroke-width="1"/>
+<rect x="782" y="38" width="16" height="26" rx="1.5" class="sv-void"><title>block 32 &#183; another sequence</title></rect>
+<rect x="800" y="38" width="16" height="26" rx="1.5" class="sv-void"><title>block 33 &#183; another sequence</title></rect>
+<rect x="818" y="38" width="16" height="26" rx="1.5" class="sv-void"><title>block 34 &#183; another sequence</title></rect>
+<rect x="836" y="38" width="16" height="26" rx="1.5" class="sv-void"><title>block 35 &#183; another sequence</title></rect>
+<rect x="854" y="38" width="16" height="26" rx="1.5" class="sv-void"><title>block 36 &#183; another sequence</title></rect>
+<rect x="872" y="38" width="16" height="26" rx="1.5" class="sv-void"><title>block 37 &#183; another sequence</title></rect>
+<rect x="890" y="38" width="16" height="26" rx="1.5" class="sv-void"><title>block 38 &#183; another sequence</title></rect>
+<rect x="908" y="38" width="16" height="26" rx="1.5" class="sv-void"><title>block 39 &#183; another sequence</title></rect>
+<rect x="937" y="33" width="148" height="36" rx="2" fill="none" stroke="var(--rule)" stroke-width="1"/>
+<rect x="940" y="38" width="16" height="26" rx="1.5" class="sv-void"><title>block 40 &#183; another sequence</title></rect>
+<rect x="958" y="38" width="16" height="26" rx="1.5" class="sv-void"><title>block 41 &#183; another sequence</title></rect>
+<rect x="976" y="38" width="16" height="26" rx="1.5" class="sv-void"><title>block 42 &#183; another sequence</title></rect>
+<rect x="994" y="38" width="16" height="26" rx="1.5" class="sv-void"><title>block 43 &#183; another sequence</title></rect>
+<rect x="1012" y="38" width="16" height="26" rx="1.5" class="sv-void"><title>block 44 &#183; another sequence</title></rect>
+<rect x="1030" y="38" width="16" height="26" rx="1.5" class="sv-void"><title>block 45 &#183; another sequence</title></rect>
+<rect x="1048" y="38" width="16" height="26" rx="1.5" class="sv-void"><title>block 46 &#183; another sequence</title></rect>
+<rect x="1066" y="38" width="16" height="26" rx="1.5" class="sv-void"><title>block 47 &#183; another sequence</title></rect>
+<rect x="1095" y="33" width="148" height="36" rx="2" fill="none" stroke="var(--rule)" stroke-width="1"/>
+<rect x="1098" y="38" width="16" height="26" rx="1.5" class="sv-void"><title>block 48 &#183; another sequence</title></rect>
+<rect x="1116" y="38" width="16" height="26" rx="1.5" class="sv-void"><title>block 49 &#183; another sequence</title></rect>
+<rect x="1134" y="38" width="16" height="26" rx="1.5" class="sv-void"><title>block 50 &#183; another sequence</title></rect>
+<rect x="1152" y="38" width="16" height="26" rx="1.5" class="sv-void"><title>block 51 &#183; another sequence</title></rect>
+<rect x="1170" y="38" width="16" height="26" rx="1.5" class="sv-void"><title>block 52 &#183; another sequence</title></rect>
+<rect x="1188" y="38" width="16" height="26" rx="1.5" class="sv-void"><title>block 53 &#183; another sequence</title></rect>
+<rect x="1206" y="38" width="16" height="26" rx="1.5" class="sv-void"><title>block 54 &#183; another sequence</title></rect>
+<rect x="1224" y="38" width="16" height="26" rx="1.5" class="sv-void"><title>block 55 &#183; another sequence</title></rect>
+<rect x="1253" y="33" width="148" height="36" rx="2" fill="none" stroke="var(--rule)" stroke-width="1"/>
+<rect x="1256" y="38" width="16" height="26" rx="1.5" class="sv-void"><title>block 56 &#183; another sequence</title></rect>
+<rect x="1274" y="38" width="16" height="26" rx="1.5" class="sv-void"><title>block 57 &#183; another sequence</title></rect>
+<rect x="1292" y="38" width="16" height="26" rx="1.5" class="sv-void"><title>block 58 &#183; another sequence</title></rect>
+<rect x="1310" y="38" width="16" height="26" rx="1.5" class="sv-void"><title>block 59 &#183; another sequence</title></rect>
+<rect x="1328" y="38" width="16" height="26" rx="1.5" class="sv-void"><title>block 60 &#183; another sequence</title></rect>
+<rect x="1346" y="38" width="16" height="26" rx="1.5" class="sv-void"><title>block 61 &#183; another sequence</title></rect>
+<rect x="1364" y="38" width="16" height="26" rx="1.5" class="sv-void"><title>block 62 &#183; another sequence</title></rect>
+<rect x="1382" y="38" width="16" height="26" rx="1.5" class="sv-void"><title>block 63 &#183; another sequence</title></rect>
+<text class="sv-num" x="0" y="86">1 ACT for 32 commands &#8594; M1 = 0.969</text>
+<text class="sv-ttl" x="0" y="152">paged</text>
+<text class="sv-lbl-s" x="0" y="166">LIFO free list after churn</text>
+<rect x="147" y="135" width="148" height="36" rx="2" fill="none" stroke="var(--rule)" stroke-width="1"/>
+<rect x="150" y="140" width="16" height="26" rx="1.5" class="sv-void"><title>block 0 &#183; another sequence</title></rect>
+<rect x="168" y="140" width="16" height="26" rx="1.5" class="sv-void"><title>block 1 &#183; another sequence</title></rect>
+<rect x="186" y="140" width="16" height="26" rx="1.5" fill="var(--hit)"><title>block 2 &#183; our sequence</title></rect>
+<rect x="204" y="140" width="16" height="26" rx="1.5" class="sv-void"><title>block 3 &#183; another sequence</title></rect>
+<rect x="222" y="140" width="16" height="26" rx="1.5" class="sv-void"><title>block 4 &#183; another sequence</title></rect>
+<rect x="240" y="140" width="16" height="26" rx="1.5" class="sv-void"><title>block 5 &#183; another sequence</title></rect>
+<rect x="258" y="140" width="16" height="26" rx="1.5" class="sv-void"><title>block 6 &#183; another sequence</title></rect>
+<rect x="276" y="140" width="16" height="26" rx="1.5" class="sv-void"><title>block 7 &#183; another sequence</title></rect>
+<rect x="305" y="135" width="148" height="36" rx="2" fill="none" stroke="var(--rule)" stroke-width="1"/>
+<rect x="308" y="140" width="16" height="26" rx="1.5" class="sv-void"><title>block 8 &#183; another sequence</title></rect>
+<rect x="326" y="140" width="16" height="26" rx="1.5" class="sv-void"><title>block 9 &#183; another sequence</title></rect>
+<rect x="344" y="140" width="16" height="26" rx="1.5" class="sv-void"><title>block 10 &#183; another sequence</title></rect>
+<rect x="362" y="140" width="16" height="26" rx="1.5" fill="var(--hit)"><title>block 11 &#183; our sequence</title></rect>
+<rect x="380" y="140" width="16" height="26" rx="1.5" class="sv-void"><title>block 12 &#183; another sequence</title></rect>
+<rect x="398" y="140" width="16" height="26" rx="1.5" class="sv-void"><title>block 13 &#183; another sequence</title></rect>
+<rect x="416" y="140" width="16" height="26" rx="1.5" class="sv-void"><title>block 14 &#183; another sequence</title></rect>
+<rect x="434" y="140" width="16" height="26" rx="1.5" class="sv-void"><title>block 15 &#183; another sequence</title></rect>
+<rect x="463" y="135" width="148" height="36" rx="2" fill="none" stroke="var(--rule)" stroke-width="1"/>
+<rect x="466" y="140" width="16" height="26" rx="1.5" class="sv-void"><title>block 16 &#183; another sequence</title></rect>
+<rect x="484" y="140" width="16" height="26" rx="1.5" class="sv-void"><title>block 17 &#183; another sequence</title></rect>
+<rect x="502" y="140" width="16" height="26" rx="1.5" class="sv-void"><title>block 18 &#183; another sequence</title></rect>
+<rect x="520" y="140" width="16" height="26" rx="1.5" class="sv-void"><title>block 19 &#183; another sequence</title></rect>
+<rect x="538" y="140" width="16" height="26" rx="1.5" fill="var(--hit)"><title>block 20 &#183; our sequence</title></rect>
+<rect x="556" y="140" width="16" height="26" rx="1.5" class="sv-void"><title>block 21 &#183; another sequence</title></rect>
+<rect x="574" y="140" width="16" height="26" rx="1.5" class="sv-void"><title>block 22 &#183; another sequence</title></rect>
+<rect x="592" y="140" width="16" height="26" rx="1.5" class="sv-void"><title>block 23 &#183; another sequence</title></rect>
+<rect x="621" y="135" width="148" height="36" rx="2" fill="none" stroke="var(--rule)" stroke-width="1"/>
+<rect x="624" y="140" width="16" height="26" rx="1.5" class="sv-void"><title>block 24 &#183; another sequence</title></rect>
+<rect x="642" y="140" width="16" height="26" rx="1.5" class="sv-void"><title>block 25 &#183; another sequence</title></rect>
+<rect x="660" y="140" width="16" height="26" rx="1.5" class="sv-void"><title>block 26 &#183; another sequence</title></rect>
+<rect x="678" y="140" width="16" height="26" rx="1.5" class="sv-void"><title>block 27 &#183; another sequence</title></rect>
+<rect x="696" y="140" width="16" height="26" rx="1.5" class="sv-void"><title>block 28 &#183; another sequence</title></rect>
+<rect x="714" y="140" width="16" height="26" rx="1.5" fill="var(--hit)"><title>block 29 &#183; our sequence</title></rect>
+<rect x="732" y="140" width="16" height="26" rx="1.5" class="sv-void"><title>block 30 &#183; another sequence</title></rect>
+<rect x="750" y="140" width="16" height="26" rx="1.5" class="sv-void"><title>block 31 &#183; another sequence</title></rect>
+<rect x="779" y="135" width="148" height="36" rx="2" fill="none" stroke="var(--rule)" stroke-width="1"/>
+<rect x="782" y="140" width="16" height="26" rx="1.5" class="sv-void"><title>block 32 &#183; another sequence</title></rect>
+<rect x="800" y="140" width="16" height="26" rx="1.5" class="sv-void"><title>block 33 &#183; another sequence</title></rect>
+<rect x="818" y="140" width="16" height="26" rx="1.5" class="sv-void"><title>block 34 &#183; another sequence</title></rect>
+<rect x="836" y="140" width="16" height="26" rx="1.5" class="sv-void"><title>block 35 &#183; another sequence</title></rect>
+<rect x="854" y="140" width="16" height="26" rx="1.5" class="sv-void"><title>block 36 &#183; another sequence</title></rect>
+<rect x="872" y="140" width="16" height="26" rx="1.5" class="sv-void"><title>block 37 &#183; another sequence</title></rect>
+<rect x="890" y="140" width="16" height="26" rx="1.5" fill="var(--hit)"><title>block 38 &#183; our sequence</title></rect>
+<rect x="908" y="140" width="16" height="26" rx="1.5" class="sv-void"><title>block 39 &#183; another sequence</title></rect>
+<rect x="937" y="135" width="148" height="36" rx="2" fill="none" stroke="var(--rule)" stroke-width="1"/>
+<rect x="940" y="140" width="16" height="26" rx="1.5" class="sv-void"><title>block 40 &#183; another sequence</title></rect>
+<rect x="958" y="140" width="16" height="26" rx="1.5" class="sv-void"><title>block 41 &#183; another sequence</title></rect>
+<rect x="976" y="140" width="16" height="26" rx="1.5" class="sv-void"><title>block 42 &#183; another sequence</title></rect>
+<rect x="994" y="140" width="16" height="26" rx="1.5" class="sv-void"><title>block 43 &#183; another sequence</title></rect>
+<rect x="1012" y="140" width="16" height="26" rx="1.5" class="sv-void"><title>block 44 &#183; another sequence</title></rect>
+<rect x="1030" y="140" width="16" height="26" rx="1.5" class="sv-void"><title>block 45 &#183; another sequence</title></rect>
+<rect x="1048" y="140" width="16" height="26" rx="1.5" class="sv-void"><title>block 46 &#183; another sequence</title></rect>
+<rect x="1066" y="140" width="16" height="26" rx="1.5" fill="var(--hit)"><title>block 47 &#183; our sequence</title></rect>
+<rect x="1095" y="135" width="148" height="36" rx="2" fill="none" stroke="var(--rule)" stroke-width="1"/>
+<rect x="1098" y="140" width="16" height="26" rx="1.5" class="sv-void"><title>block 48 &#183; another sequence</title></rect>
+<rect x="1116" y="140" width="16" height="26" rx="1.5" class="sv-void"><title>block 49 &#183; another sequence</title></rect>
+<rect x="1134" y="140" width="16" height="26" rx="1.5" class="sv-void"><title>block 50 &#183; another sequence</title></rect>
+<rect x="1152" y="140" width="16" height="26" rx="1.5" class="sv-void"><title>block 51 &#183; another sequence</title></rect>
+<rect x="1170" y="140" width="16" height="26" rx="1.5" fill="var(--hit)"><title>block 52 &#183; our sequence</title></rect>
+<rect x="1188" y="140" width="16" height="26" rx="1.5" class="sv-void"><title>block 53 &#183; another sequence</title></rect>
+<rect x="1206" y="140" width="16" height="26" rx="1.5" class="sv-void"><title>block 54 &#183; another sequence</title></rect>
+<rect x="1224" y="140" width="16" height="26" rx="1.5" class="sv-void"><title>block 55 &#183; another sequence</title></rect>
+<rect x="1253" y="135" width="148" height="36" rx="2" fill="none" stroke="var(--rule)" stroke-width="1"/>
+<rect x="1256" y="140" width="16" height="26" rx="1.5" class="sv-void"><title>block 56 &#183; another sequence</title></rect>
+<rect x="1274" y="140" width="16" height="26" rx="1.5" class="sv-void"><title>block 57 &#183; another sequence</title></rect>
+<rect x="1292" y="140" width="16" height="26" rx="1.5" class="sv-void"><title>block 58 &#183; another sequence</title></rect>
+<rect x="1310" y="140" width="16" height="26" rx="1.5" class="sv-void"><title>block 59 &#183; another sequence</title></rect>
+<rect x="1328" y="140" width="16" height="26" rx="1.5" class="sv-void"><title>block 60 &#183; another sequence</title></rect>
+<rect x="1346" y="140" width="16" height="26" rx="1.5" fill="var(--hit)"><title>block 61 &#183; our sequence</title></rect>
+<rect x="1364" y="140" width="16" height="26" rx="1.5" class="sv-void"><title>block 62 &#183; another sequence</title></rect>
+<rect x="1382" y="140" width="16" height="26" rx="1.5" class="sv-void"><title>block 63 &#183; another sequence</title></rect>
+<text class="sv-num" x="0" y="188">8 ACT for 32 commands &#8594; M1 = 0.750</text>
+<rect x="0" y="212" width="14" height="12" rx="1.5" fill="var(--hit)"/><text class="sv-lbl" x="20" y="222">blocks held by the sequence being measured</text>
+<rect x="330" y="212" width="14" height="12" rx="1.5" class="sv-void"/><text class="sv-lbl" x="350" y="222">blocks held by other live sequences</text>
+</g></svg></div>
+</div>
+<figcaption>Both strips hold exactly eight blocks of the same sequence, so both move the same bytes and both issue the same 32 all-bank commands. The only difference is how those blocks sit relative to the row-group boundaries &mdash; and that difference is one activation versus eight. This is a schematic of the mechanism, not a sampled trace; the measured consequence is the 0.759-versus-0.958 row-hit gap in the table above.</figcaption>
+</figure>
+
+  <h3>Try it yourself</h3>
+  <p>The panel below runs the same coalescing algorithm as <code>pimkv/pimmodel.py</code>, reimplemented in JavaScript and checked to produce bit-identical M1/M2/M3 against the Python for the anchor cases. It maps a synthetic block table through the real bit layouts — it is the metric kernel, not the full simulator, so the placement patterns are sketches rather than replayed traces.</p>
+
+  <div class="panel">
+    <h4>All-bank command model</h4>
+    <div class="ctrls">
+      <div>
+        <label class="f" for="lbMap">Address map</label>
+        <select id="lbMap">
+          <option value="host-cacheline">host-cacheline</option>
+          <option value="host-centric">host-centric</option>
+          <option value="pim-friendly">pim-friendly</option>
+        </select>
+      </div>
+      <div>
+        <label class="f" for="lbPlace">Placement</label>
+        <select id="lbPlace">
+          <option value="lifo">paged — LIFO free list, fresh pool</option>
+          <option value="frag">paged — fragmented pool (scattered)</option>
+          <option value="contig">contiguous span</option>
+        </select>
+      </div>
+      <div>
+        <label class="f" for="lbBt">Block tokens <span class="val" id="lbBtV">16</span></label>
+        <input type="range" id="lbBt" min="0" max="5" step="1" value="2">
+      </div>
+      <div>
+        <label class="f" for="lbLen">Sequence length <span class="val" id="lbLenV">512</span></label>
+        <input type="range" id="lbLen" min="128" max="2048" step="128" value="512">
+      </div>
+    </div>
+    <div class="out">
+      <div><span>M1 row-hit</span><b id="oM1">—</b><small id="oM1n"></small></div>
+      <div><span>M2 bank par.</span><b id="oM2">—</b><small id="oM2n"></small></div>
+      <div><span>M3 effective BW</span><b id="oM3">—</b><small id="oM3n">of 3810 GB/s ideal</small></div>
+      <div><span>M4 attn latency</span><b id="oM4">—</b><small>ns · one layer</small></div>
+    </div>
+    <p style="font-size:13.5px;color:var(--ink-2);margin:16px 0 0;max-width:none">Set host-cacheline + fragmented + 16 tokens to see the baseline's 0.75. Push block tokens to 128 and it climbs to the 0.969 ceiling. Switch to pim-friendly and placement stops mattering entirely — that is finding 2, live.</p>
+  </div>
+</div>
+</section>
+
+<!-- ========================= 0x17 ========================= -->
+<section>
+<div class="wrap">
+  <div class="sechead"><div class="addr">0x17</div><div><h2>The cost of the upper bound</h2></div></div>
+  <p class="sub">One number in the run logs is easy to skip past and shouldn't be: the contiguous allocator — our "ideal" reference — failed to place a request <strong class="num">9,162</strong> times over the same 2000-request stream.</p>
+
+  <p>The paged baseline had zero placement failures. Contiguous had nine thousand, and needed <span class="mono num">12,148</span> engine steps to drain the same workload against paged's <span class="mono num">10,782</span> — about <strong>13% more wall-clock decode iterations</strong> for identical work, purely from head-of-line blocking while it waited for an extent big enough.</p>
+
+  <p>This is not a bug in the reference implementation; it is the reason PagedAttention exists. Any "PIM-aware allocator" that reaches its bandwidth by demanding contiguity has simply moved the cost from the memory controller to the scheduler. Whatever Phase 2 builds has to beat 1173 GB/s <em>without</em> reintroducing 9,162 admission stalls — and that constraint was not visible from the proposal.</p>
+
+  <div class="note"><strong>Read the reference implementation's failures, not just its metrics.</strong> The upper bound is only an upper bound on the axis you were measuring.</div>
+</div>
+</section>
+
+<!-- ========================= 0x18 ========================= -->
+<section>
+<div class="wrap">
+  <div class="sechead"><div class="addr">0x18</div><div><h2>The open decision</h2></div></div>
+  <p class="sub">Phase 0 ends at a fork the measurement cannot resolve on its own. Both branches are honest; they tell different stories with the same CSVs.</p>
+
+  <div class="panels3" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr))">
+    <div class="chartcard">
+      <div class="ttl">A · Keep the allocator framing</div>
+      <div class="axs">headline: placement is worth 2.3×</div>
+      <p style="font-size:15px;margin:0 0 12px">Report the original claim with the honest numbers: on a realistic channel-interleaved map, paged placement costs 2.3× effective PIM bandwidth against contiguous, and a PIM-aware allocator should recover most of it without contiguity's admission stalls.</p>
+      <p style="font-size:14px;color:var(--ink-2);margin:0"><strong>Risk:</strong> the gap is narrower than the proposal implied, and it only exists under channel-interleaved maps. <strong>Upside:</strong> the fix is still the contribution, and <code>spec</code> may widen the gap considerably.</p>
+    </div>
+    <div class="chartcard">
+      <div class="ttl">B · Reframe around geometry</div>
+      <div class="axs">headline: block size 16 is the wrong constant</div>
+      <p style="font-size:15px;margin:0 0 12px">Lead with the block-size × address-map result: a PIM-backed serving system should use the derived 128-token block, not 16, and that single change moves 1173 → 2795 GB/s. The allocator becomes the second lever, applied where blocks still land below a row-group.</p>
+      <p style="font-size:14px;color:var(--ink-2);margin:0"><strong>Risk:</strong> "use bigger pages" is a smaller contribution than a new allocator, and bigger blocks cost internal fragmentation we have not yet measured. <strong>Upside:</strong> it is the finding the data most strongly supports.</p>
+    </div>
+  </div>
+
+  <p style="margin-top:26px">Note that block size 16 → 128 buys 2795 GB/s and placement alone buys 2719 GB/s — the two levers land in nearly the same place, which means they are attacking the same underlying quantity: how much of a row-group a single allocation unit covers. That is an argument for framing B being the more general statement, and for A being the interesting special case once blocks are already small for capacity reasons.</p>
+</div>
+</section>
+
+<!-- ========================= 0x19 ========================= -->
+<section>
+<div class="wrap">
+  <div class="sechead"><div class="addr">0x19</div><div><h2>What has not been measured</h2></div></div>
+  <p class="sub">Everything above is a run that exists in <code>results/phase0/</code>. Everything below is not. Listing it explicitly is the point of this section.</p>
+
+  <div class="scroll"><table>
+    <thead><tr><th>Item</th><th>State</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td><code>prefix</code> workload + copy-on-write</td><td><span class="status s-none">not built</span></td><td>Generator raises <code>NotImplementedError</code>. Needs CoW/ref-count semantics in the allocator — the vLLM source for it is already vendored.</td></tr>
+      <tr><td><code>spec</code> workload — tree speculative decoding</td><td><span class="status s-none">not built</span></td><td>The adversarial case, and the curve the proposal's headline figure was built around. <strong>Zero data exists on it.</strong></td></tr>
+      <tr><td><code>PimAware</code> allocator</td><td><span class="status s-none">not built</span></td><td>Constructor raises. Bank-group-aligned buddy pools, alignment-preserving free, optional compaction.</td></tr>
+      <tr><td>Block-size / batch / context sweeps</td><td><span class="status s-open">2 probes only</span></td><td>bt = 4 and 128 at 500 requests. The full sweep config exists (<code>configs/headline.yaml</code>); the sweep runner does not.</td></tr>
+      <tr><td>Headline / bandwidth / heatmap figures</td><td><span class="status s-none">not built</span></td><td>Only an M1 histogram plot exists. <code>plots.py</code> reads real CSVs and fabricates nothing.</td></tr>
+      <tr><td>Ramulator 2 cross-validation</td><td><span class="status s-open">binary builds</span></td><td>Phase 3. Trace emitter is a documented stub. Hard rule: if Ramulator's cycle deltas disagree in <em>sign</em> with M3, the analytical model is wrong and we stop.</td></tr>
+      <tr><td>GDDR6-PIM preset</td><td><span class="status s-open">defined, unrun</span></td><td>Geometry is in <code>config.py</code> and passes the address-map tests; no workload has been pushed through it.</td></tr>
+      <tr><td>Validation against real vLLM block IDs</td><td><span class="status s-none">blocked</span></td><td>Needs a Linux box with a GPU to dump real block tables. Planned if one becomes available.</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>One stated expectation, clearly labelled</h3>
+  <p>Tree speculative decoding forks and rewinds the cache several times per token instead of appending once every 16, so we <em>expect</em> it to churn the free list much harder than <code>steady</code> and push the paged baseline below 0.759. That is a prediction with no measurement behind it. It is the next thing to run under either framing, and it is equally capable of coming back at 0.76 and making this section shorter.</p>
+</div>
+</section>
+
+<!-- ========================= 0x1A ========================= -->
+<section>
+<div class="wrap">
+  <div class="sechead"><div class="addr">0x1A</div><div><h2>Limitations, stated rather than approximated</h2></div></div>
+  <p class="sub">Each of these is a place the model diverges from real hardware or real vLLM. Where a simplification has a direction, the direction is noted — most of them are conservative <em>against</em> the project's own claim.</p>
+
+  <ul>
+    <li><strong>We model vLLM's allocation policy, not vLLM.</strong> Ported and cited to file, commit, and line. Free order is block-table order rather than vLLM's unordered <code>set()</code> iteration, which slightly tidies the baseline's free list.</li>
+    <li><strong>One representative layer.</strong> vLLM keeps one KV tensor per layer but a single block table per sequence, so every layer sees identical inter-block placement. M1/M2 generalise; absolute bytes and M4 scale with layer count.</li>
+    <li><strong>Within-block layout is assumed PIM-optimal.</strong> The accelerator writes K/V at decode time and can arrange bytes inside a block however it likes; the allocator only controls which physical blocks. That is the correct abstraction boundary for an allocator study, and it means co-designed within-block layouts could shift absolute numbers without changing the comparison.</li>
+    <li><strong>Column-relaxed all-bank commands.</strong> We require one row and distinct banks, but not one broadcast column — real HBM-PIM broadcasts a single column. Relaxing this can only help the scattered baseline, so it is conservative for our claim.</li>
+    <li><strong>Oracle admission control.</strong> Final lengths are known and a request is admitted only if its whole footprint fits. This removes watermarks, preemption, and swapping from scope. It is identical across policies, so comparisons stay fair — but real preemption would churn the free list harder, meaning the baseline shown here is the gentle version.</li>
+    <li><strong>Open-row state starts cold per sampled sequence.</strong> Batch interleaving between sequences is not modelled; the cost is at most one extra miss per channel per sample.</li>
+    <li><strong>Controller reorder window is a parameter, not a tuned constant.</strong> 64 bursts per channel by default; <code>--coalesce inorder</code> is the pessimistic end. It is a sensitivity axis for Phase 2, not a knob we turned until the answer looked good.</li>
+    <li><strong>Absolute nanoseconds are indicative.</strong> Only the <code class="mono">tRC/tCCD_ab ≈ 10.5</code> ratio is load-bearing, pending the Ramulator cross-check.</li>
+    <li><strong>Channel-level load balance is out of scope.</strong> M1–M3 rate per-command quality. They say nothing about whether all 32 channels stay busy.</li>
+  </ul>
+
+  <h3>Reproducing everything on this page</h3>
+  <pre><span class="c"># 49 tests including the five validation gates</span>
+make test
+
+<span class="c"># the five bracketing runs + probes → results/phase0/</span>
+make kill-test
+
+<span class="c"># any single row of the table, one visible command</span>
+.venv/bin/python -m pimkv.run \
+  --workload steady --allocator paged --dram hbm3-pim \
+  --addrmap host-cacheline --block-tokens 16 \
+  --requests 2000 --seed 0 \
+  --out results/phase0/steady_paged_hostcacheline.csv</pre>
+  <p style="font-size:14.5px;color:var(--ink-2)">Every run writes a <code>.meta.json</code> sidecar with the full configuration and summary next to its CSV, and the same seed produces a byte-identical file. Toolchain notes for this machine live in <code>NOTES.md</code>: Homebrew python3.14 is broken here (pyexpat / libexpat symbol mismatch), so everything runs on python3.13 via <code>uv</code>, and C++ builds need <code>env -u CXXFLAGS -u CFLAGS -u LDFLAGS</code> because the shell profile self-references <code>CXXFLAGS</code>.</p>
+</div>
+</section>
+
+<!-- ========================= end ========================= -->
+<section style="border-bottom:none">
+<div class="wrap">
+  <div class="sechead"><div class="addr">0x1B</div><div><h2>Where Part III picks up</h2></div></div>
+  <p class="sub">Phase 0 was supposed to produce a motivating figure. It produced a fork in the road and three findings instead, which is a better return on two days.</p>
+  <ol>
+    <li><strong>Build <code>spec</code> and <code>prefix</code>.</strong> They are the only workloads that can widen the measured gap, and the only ones that can close the argument that <code>steady</code> is simply too gentle.</li>
+    <li><strong>Build <code>PimAware</code> — and hold it to the right bar.</strong> Beat 1173 GB/s without contiguous allocation's 9,162 admission failures. If it cannot, that is the finding.</li>
+    <li><strong>Settle the framing.</strong> The block-size result is the stronger claim the data supports; the allocator is the more interesting contribution. They may be the same result seen from two angles.</li>
+  </ol>
+  <p>The thing worth keeping from Phase 0 is procedural rather than architectural: the stop rule fired, and we stopped. The number that came back was not the one the proposal wanted, and the two days spent building gates before results are what made it safe to say so out loud.</p>
+</div>
+</section>
+
+</main>
+
+<footer><div class="wrap">
+  Part II of a series · Part I: <em>Rows and blocks</em> (primer) · Kiet Vu, Computer Engineering, Purdue<br>
+  All figures generated from <code>results/phase0/</code> · harness, gates, and decision log in the repo
+</div></footer>
+
+<script>
+(function(){
+  "use strict";
+  var $=function(id){return document.getElementById(id)};
+
+  /* ---------- hero stripline: real command pattern at M1 = 0.75 ---------- */
+  (function(){
+    var el=$("stripline"),h="";
+    for(var i=0;i<32;i++){h+='<i class="'+(i%4===0?"m":"h")+'"></i>'}
+    el.innerHTML=h;
+  })();
+
+  /* ---------- histogram (real bin counts from results/phase0) ---------- */
+  (function(){
+    var paged=[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,13,4429,238,99,105,111,80,5];
+    var contig=[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,7,58,2296,3445];
+    var W=620,H=220,L=44,R=14,T=16,B=38,pw=W-L-R,ph=H-T-B;
+    var max=0,i;for(i=0;i<25;i++){max=Math.max(max,paged[i],contig[i])}
+    var s='',bw=pw/25;
+    for(i=0;i<=4;i++){var y=T+ph-ph*i/4;
+      s+='<line class="gridline" x1="'+L+'" y1="'+y.toFixed(1)+'" x2="'+(W-R)+'" y2="'+y.toFixed(1)+'"/>';
+      s+='<text class="axtxt" x="'+(L-7)+'" y="'+(y+3.5).toFixed(1)+'" text-anchor="end">'+Math.round(max*i/4/1000*10)/10+'k</text>';}
+    function bars(d,fill,off){var o='';for(var j=0;j<25;j++){if(!d[j])continue;
+      var hh=ph*d[j]/max,x=L+j*bw+off,y=T+ph-hh;
+      o+='<rect x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+(bw/2-1.5).toFixed(1)+'" height="'+hh.toFixed(1)+'" rx="2" fill="'+fill+'"><title>M1 '+(j/25).toFixed(2)+'–'+((j+1)/25).toFixed(2)+': '+d[j]+' samples</title></rect>';}
+      return o;}
+    s+=bars(paged,"var(--miss)",1);
+    s+=bars(contig,"var(--hit)",bw/2);
+    s+='<line class="axline" x1="'+L+'" y1="'+(T+ph)+'" x2="'+(W-R)+'" y2="'+(T+ph)+'"/>';
+    [0,0.25,0.5,0.75,1].forEach(function(v){var x=L+pw*v;
+      s+='<text class="axtxt" x="'+x.toFixed(1)+'" y="'+(T+ph+16)+'" text-anchor="middle">'+v.toFixed(2)+'</text>';});
+    s+='<text class="axtxt" x="'+(L+pw/2)+'" y="'+(H-4)+'" text-anchor="middle">M1 — per-decode-step row-hit rate</text>';
+    /* direct labels instead of a legend box */
+    s+='<rect x="'+(L+pw*0.30)+'" y="'+(T+18)+'" width="9" height="9" rx="2" fill="var(--miss)"/>';
+    s+='<text class="dlbl" x="'+(L+pw*0.30+14)+'" y="'+(T+26)+'">paged · mean 0.759</text>';
+    s+='<rect x="'+(L+pw*0.30)+'" y="'+(T+36)+'" width="9" height="9" rx="2" fill="var(--hit)"/>';
+    s+='<text class="dlbl" x="'+(L+pw*0.30+14)+'" y="'+(T+44)+'">contiguous · mean 0.958</text>';
+    $("histSvg").innerHTML=s;
+  })();
+
+  /* ---------- the lab: JS replica of pimkv.addrmap + pimkv.pimmodel ------
+     Verified bit-identical to the Python for contiguous and descending
+     block tables on all three maps.                                    */
+  var G={channels:32,bgs:4,bpg:4,rowB:1024,burstB:32,rows:16384,cl:64};
+  var BANKS=G.bgs*G.bpg, COLS=G.rowB/G.burstB, KVB=4096, TCCD=4.3, TRC=45.0;
+  var IDEAL=G.channels*BANKS*G.burstB/TCCD;
+  function bits(n){return Math.round(Math.log(n)/Math.LN2)}
+  function layout(scheme){
+    var ch=bits(G.channels),bg=bits(G.bgs),ba=bits(G.bpg),ro=bits(G.rows),co=bits(COLS);
+    if(scheme==="host-centric")return [["co",co],["ch",ch],["ba",ba],["bg",bg],["ro",ro]];
+    if(scheme==="host-cacheline"){var lo=Math.min(bits(G.cl/G.burstB),co);
+      return [["co",lo],["ch",ch],["ba",ba],["bg",bg],["co",co-lo],["ro",ro]];}
+    return [["ba",ba],["bg",bg],["co",co],["ro",ro],["ch",ch]];
+  }
+  function mapper(scheme){
+    var f=layout(scheme);
+    return function(lin){
+      var out={ch:0,bg:0,ba:0,ro:0,co:0},sh=0,ifs={ch:0,bg:0,ba:0,ro:0,co:0},i,n,nb,chunk;
+      for(i=0;i<f.length;i++){n=f[i][0];nb=f[i][1];if(!nb)continue;
+        chunk=Math.floor(lin/Math.pow(2,sh))%Math.pow(2,nb);
+        out[n]+=chunk*Math.pow(2,ifs[n]);ifs[n]+=nb;sh+=nb;}
+      return out;};
+  }
+  function coalesce(bank,row,W){
+    var cmds=0,hits=0,carry=-1,n=row.length,s,e,i,m,perRow,c,d,present;
+    for(s=0;s<n;s+=W){
+      e=Math.min(s+W,n);m={};
+      for(i=s;i<e;i++){var k=row[i]*BANKS+bank[i];m[k]=(m[k]||0)+1}
+      perRow={};
+      for(var kk in m){var r=Math.floor(kk/BANKS);
+        perRow[r]=Math.max(perRow[r]||0,m[kk]);}
+      c=0;d=0;present=0;
+      for(var rr in perRow){c+=perRow[rr];d++;if(+rr===carry)present=1}
+      cmds+=c;hits+=c-(d-present);carry=row[e-1];
+    }
+    return [cmds,hits];
+  }
+  function metrics(blocks,seqLen,scheme,btok){
+    var bpt=KVB/G.burstB, bpb=btok*bpt, nb=seqLen*bpt, mp=mapper(scheme);
+    var per={},i,a,phys,k;
+    for(i=0;i<nb;i++){
+      phys=blocks[Math.floor(i/bpb)]*bpb+(i%bpb);a=mp(phys);
+      if(!per[a.ch])per[a.ch]={b:[],r:[]};
+      per[a.ch].b.push(a.bg*G.bpg+a.ba);per[a.ch].r.push(a.ro);
+    }
+    var C=0,H=0,N=0;
+    for(k in per){var q=coalesce(per[k].b,per[k].r,64);C+=q[0];H+=q[1];N+=per[k].r.length}
+    var m1=C?H/C:0,m2=C?N/(BANKS*C):0;
+    var m3=IDEAL*m2*(TCCD/(m1*TCCD+(1-m1)*TRC));
+    return {m1:m1,m2:m2,m3:m3,m4:seqLen*KVB/m3};
+  }
+  var BT=[4,8,16,32,64,128];
+  var seed=987654321;
+  function rnd(){seed=(seed*1103515245+12345)&0x7fffffff;return seed/0x7fffffff}
+  function placement(kind,n,pool){
+    var out=[],i;
+    if(kind==="contig"){for(i=0;i<n;i++)out.push(i);return out}
+    if(kind==="lifo"){for(i=0;i<n;i++)out.push(pool-1-i);return out}
+    seed=987654321;
+    for(i=0;i<n;i++)out.push(Math.floor(rnd()*pool));
+    return out;
+  }
+  function runLab(){
+    var scheme=$("lbMap").value, kind=$("lbPlace").value;
+    var btok=BT[+$("lbBt").value], len=+$("lbLen").value;
+    $("lbBtV").textContent=btok;
+    $("lbLenV").textContent=len;
+    var nblk=Math.ceil(len/btok), pool=Math.max(nblk*4,Math.floor(3244*16/btok));
+    var r=metrics(placement(kind,nblk,pool),len,scheme,btok);
+    $("oM1").textContent=r.m1.toFixed(3);
+    var kcmd=btok*KVB/(G.channels*BANKS*G.burstB);
+    $("oM1n").textContent=(r.m1>=0.9686?"at the 0.969 ceiling":
+      (kcmd>1?"1 \u2212 1/k floor: "+(1-1/kcmd).toFixed(3):"k = 1 cmd/block \u2014 law breaks down"));
+    $("oM2").textContent=r.m2.toFixed(3);
+    $("oM2n").textContent=Math.round(r.m2*BANKS)+" of 16 banks";
+    $("oM3").textContent=Math.round(r.m3);
+    $("oM3n").textContent=(r.m3/IDEAL*100).toFixed(1)+"% of 3810 GB/s ideal";
+    $("oM4").textContent=Math.round(r.m4);
+  }
+
+  /* ---------- burst-walk grid: one block through one channel ---------- */
+  function walkBlock(scheme,btok){
+    var bpt=KVB/G.burstB, bpb=btok*bpt, mp=mapper(scheme);
+    var per={},i,a;
+    for(i=0;i<bpb;i++){a=mp(i);
+      if(!per[a.ch])per[a.ch]={b:[],r:[],c:[]};
+      per[a.ch].b.push(a.bg*G.bpg+a.ba);per[a.ch].r.push(a.ro);per[a.ch].c.push(a.co);}
+    var keys=Object.keys(per), ch=keys[0];
+    return {ch:+ch, d:per[ch], nch:keys.length};
+  }
+  function drawWalk(){
+    var scheme=$("wkMap").value, btok=BT[+$("wkBt").value], pct=+$("wkRev").value;
+    $("wkBtV").textContent=btok;
+    var w=walkBlock(scheme,btok), d=w.d, tot=d.r.length;
+    var n=Math.max(1,Math.round(tot*pct/100));
+    $("wkRevV").textContent=(pct>=100?"all "+tot:n+" / "+tot);
+    /* (row,bank) -> set of columns, in walk order */
+    var cells={},rowsSeen=[],i,key;
+    for(i=0;i<n;i++){
+      key=d.r[i]+"|"+d.b[i];
+      if(!cells[key])cells[key]={};
+      cells[key][d.c[i]]=1;
+      if(rowsSeen.indexOf(d.r[i])<0)rowsSeen.push(d.r[i]);
+    }
+    rowsSeen.sort(function(a,b){return a-b});
+    var CAP=6, shown=rowsSeen.slice(0,CAP);
+    var LW=86,CWd=44,CGap=3,CHt=30,LGap=9,TOP=30;
+    var W=LW+16*(CWd+CGap), H=TOP+shown.length*(CHt+LGap)+26;
+    var o='',b,r,x,y,cs,frac;
+    for(b=0;b<16;b++){
+      x=LW+b*(CWd+CGap);
+      o+='<text class="sv-lbl-s" x="'+(x+CWd/2)+'" y="'+(TOP-10)+'" text-anchor="middle">b'+b+'</text>';
+    }
+    for(i=0;i<shown.length;i++){
+      r=shown[i];y=TOP+i*(CHt+LGap);
+      o+='<text class="sv-lbl" x="'+(LW-10)+'" y="'+(y+20)+'" text-anchor="end">row +'+(r-rowsSeen[0])+'</text>';
+      for(b=0;b<16;b++){
+        x=LW+b*(CWd+CGap);
+        cs=cells[r+"|"+b];
+        var cnt=cs?Object.keys(cs).length:0;
+        frac=cnt/COLS;
+        o+='<rect x="'+x+'" y="'+y+'" width="'+CWd+'" height="'+CHt+'" rx="1.5" class="sv-void"/>';
+        if(cnt)o+='<rect x="'+x+'" y="'+(y+CHt*(1-frac)).toFixed(1)+'" width="'+CWd+'" height="'+(CHt*frac).toFixed(1)+'" rx="1.5" fill="var(--seq3)"><title>row '+r+', bank '+b+': '+cnt+' of 32 columns</title></rect>';
+      }
+    }
+    if(rowsSeen.length>CAP)
+      o+='<text class="sv-lbl-s" x="'+(LW-10)+'" y="'+(TOP+shown.length*(CHt+LGap)+12)+'" text-anchor="end">+'+(rowsSeen.length-CAP)+' more rows, identical</text>';
+    var svg=$("wkSvg");
+    svg.setAttribute("viewBox","0 0 "+W+" "+H);
+    svg.style.minWidth=Math.min(W,820)+"px";
+    svg.innerHTML=o;
+    /* stats from the real coalescing model, this channel only */
+    var q=coalesce(d.b.slice(0,n),d.r.slice(0,n),64);
+    var banks={};for(i=0;i<n;i++)banks[d.b[i]]=1;
+    var nb=Object.keys(banks).length;
+    var m1=q[0]?q[1]/q[0]:0, m2=q[0]?n/(BANKS*q[0]):0;
+    $("wkBanks").textContent=(m2*BANKS).toFixed(1);
+    $("wkRows").textContent=rowsSeen.length;
+    $("wkRowsN").textContent=(w.nch===1?"block lives in 1 channel":"block spread over "+w.nch+" channels");
+    $("wkCmds").textContent=q[0];
+    $("wkHits").textContent=q[1]+" hits \u00b7 "+(q[0]-q[1])+" ACT";
+    $("wkM12").textContent=m1.toFixed(2)+" \u00b7 "+m2.toFixed(2);
+    var v, eff=m2*BANKS;
+    if(eff<8)v="Only "+eff.toFixed(1)+" of 16 banks are in flight per command, so each one leaves about "+Math.round(16-eff)+" MAC units idle. The block does eventually visit "+nb+" bank"+(nb===1?"":"s")+", but it sweeps a whole row of one bank before moving to the next, and the controller\u2019s 64-burst window cannot see far enough ahead to pair them. Rows stay open \u2014 M1 looks fine \u2014 and the bandwidth is gone anyway.";
+    else if(rowsSeen.length===1)v="All 16 banks participate at a single row index: "+q[0]+" commands, one activation, "+q[1]+" hits. This is the regime where the allocator decides whether the next block continues the row or opens a new one.";
+    else v="The block fills "+rowsSeen.length+" whole row-groups inside one channel. Every command is full and only the row boundaries cost an activation \u2014 which is why scattering blocks here changes nothing.";
+    $("wkVerdict").textContent=v;
+  }
+  ["wkMap","wkBt","wkRev"].forEach(function(id){
+    $(id).addEventListener("input",drawWalk);
+    $(id).addEventListener("change",drawWalk);
+  });
+  drawWalk();
+
+  ["lbMap","lbPlace","lbBt","lbLen"].forEach(function(id){
+    $(id).addEventListener("input",runLab);
+    $(id).addEventListener("change",runLab);
+  });
+  $("lbPlace").value="frag";
+  runLab();
+})();
+</script>
+</body>
+</html>

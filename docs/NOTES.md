@@ -257,3 +257,12 @@ Remaining gap to ideal (2805 vs 3810 GB/s = 74%): the 1−1/cols_per_row
 row-ACT floor (0.969 ceiling → timing factor ~0.77 at nRC/nCCD=10.5), not
 placement. A PIM controller with cross-row-group pipelining would close it;
 out of scope, noted for the writeup.
+
+**Heatmap (results/heatmap/, paged, fixedlen prompts, 128-token outputs):**
+M1 rises monotonically with both block size and context length — 0.74 at
+(bt=4, 512 tok) up to 0.97 at (any bt, 16k tok). Confirms finding 4: the
+paged penalty is concentrated where decode-time growth is a large fraction
+of the cache (short contexts, small blocks); long prompts are laid down in
+one prefill burst and stay compact. Together with the headline figure this
+is the design envelope: PIM-aware allocation matters most for
+short/medium-context, high-churn serving — which is the common case.

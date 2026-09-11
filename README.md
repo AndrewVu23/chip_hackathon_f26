@@ -136,14 +136,41 @@ measures.
 - **Channel-level load balance is out of scope**: M1-M3 rate per-command
   quality; they do not measure whether all channels stay busy.
 
+## Headline results (docs/NOTES.md 2026-09-10 has the full tables)
+
+All on hbm3-pim with the realistic host-cacheline map, 1000 requests,
+seed 0; ideal all-bank bandwidth 3810 GB/s; `make sweep && make reproduce`
+regenerates everything.
+
+- **The PIM-aware allocator recovers the whole steady-state gap at every
+  block size**: M1 0.963 (the 1−1/cols geometric ceiling) from 4-token to
+  256-token blocks — 2.3× effective bandwidth over the vLLM-port baseline
+  at the standard 16-token block (2805 vs 1226 GB/s), 6.5× at 4 tokens —
+  while the contiguous oracle pays 8.9% longer makespan in admission stalls
+  and cannot prefix-share.
+- **Two levers, same destination**: at the derived 128-token block size all
+  three allocators converge to 0.963. Use 128-token blocks, or keep 16 and
+  place alignment-aware.
+- **Tree speculative decoding is adversarial as hypothesized**: branch
+  fork/free churn drags the paged baseline to 0.756 and dents even the
+  PIM-aware allocator to 0.879 at bt=16 (seed-stable) — the honest
+  limitation of frame-affinity placement, analyzed in NOTES.
+- **longctx is nearly immune under any allocator** (paged 0.963): prefill
+  allocates hundreds of blocks in one burst that even a LIFO free list
+  serves in long runs. The paged penalty is a churn phenomenon, not a
+  length phenomenon.
+
 ## Phase status
 
-- **Phase 0 (kill test): DONE — stopped at the brief's decision gate.**
-  Baseline M1 came out high (0.97 host-centric / 0.76 host-cacheline), not
-  <0.3; the damage is real but lives in M2 (host-centric: 9.7% of ideal BW)
-  and in the sub-row-group block-slice regime (host-cacheline: paged 1173
-  vs contiguous 2719 GB/s — 2.3× from placement alone). Full table +
-  verdict: docs/NOTES.md 2026-08-28. Awaiting owner call on framing.
-- Phase 1: longctx implemented; prefix/spec workloads + CoW/fork — next.
-- Phase 2: PimAware allocator + sweeps + headline figure — pending.
-- Phase 3: Ramulator 2 cross-validation (binary already builds) — pending.
+- **Phase 0 (kill test): DONE** — stopped at the brief's gate, owner
+  resumed. Baseline M1 was high on the brief's host-centric map (0.97) but
+  that map destroys M2 (0.124 → 9.7% of ideal BW) for every allocator; the
+  allocator-recoverable gap lives on channel-interleaved maps
+  (docs/NOTES.md 2026-08-28).
+- **Phase 1: DONE** — all four workloads (spec = fork/CoW churn per vLLM
+  semantics; prefix = pinned shared system prompt), M1–M4, 64 tests green.
+- **Phase 2: DONE** — PimAware frame-aligned allocator, 48-run headline
+  sweep, figures/headline.png + bandwidth.png + sweep_heatmap.png.
+- Phase 3: Ramulator 2 cross-validation (binary builds) — the designated
+  cut if the deadline arrives first; not started.
+- Phase 4: demo assets — blog/ write-ups exist; video per brief §11.

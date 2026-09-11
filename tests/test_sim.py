@@ -213,3 +213,54 @@ def test_shard_kv_preserves_per_channel_slice():
 def test_shard_kv_rejects_indivisible():
     with pytest.raises(ValueError):
         shard_kv(GEOM, SHAPE, 16)      # 8 kv_heads cannot split 16 ways
+
+
+# ------------------------------- Phase D: vLLM admission + preemption
+
+from pimkv.allocator import ContiguousOracle as _CO
+
+
+def _run_adm(alloc_name, headroom, n=120, seed=0, wl=None, **kw):
+    reqs = (wl or steady)(n, seed=seed)
+    pool = auto_pool_blocks(reqs, 16, 32, headroom=headroom)
+    alloc = make_allocator(alloc_name, pool, seed, frame_blocks=8)
+    am = AddrMap(GEOM, "host-cacheline")
+    kw.setdefault("sample_every", 8); kw.setdefault("sample_seqs", 4)
+    return simulate(reqs, alloc, GEOM, SHAPE, am, block_tokens=16,
+                    max_batch=32, seed=seed, admission="vllm",
+                    frame_blocks=8, **kw)
+
+
+def test_vllm_admission_preempts_under_pressure_and_conserves():
+    res = _run_adm("paged", headroom=0.6, check_every=1)
+    s = res.summary
+    assert s["preemptions"] > 0
+    assert s["completed"] + s["dropped"] == 120
+    assert s["dropped"] == 0
+
+
+def test_vllm_admission_no_preemption_when_roomy():
+    res = _run_adm("paged", headroom=3.0, check_every=1)
+    assert res.summary["preemptions"] == 0
+    assert res.summary["completed"] == 120
+
+
+def test_vllm_admission_deterministic():
+    a = _run_adm("pim-aware", headroom=0.7, seed=2).df
+    b = _run_adm("pim-aware", headroom=0.7, seed=2).df
+    assert a.to_csv(index=False) == b.to_csv(index=False)
+
+
+def test_vllm_admission_spec_and_prefix_conserve():
+    r1 = _run_adm("paged", headroom=0.7, wl=spec_wl, spec=SpecParams(),
+                  check_every=1)
+    assert r1.summary["completed"] + r1.summary["dropped"] == 120
+    r2 = _run_adm("pim-aware", headroom=0.7, wl=prefix_wl, check_every=1)
+    assert r2.summary["completed"] + r2.summary["dropped"] == 120
+
+
+def test_vllm_admission_rejects_contiguous():
+    reqs = steady(10, seed=0)
+    with pytest.raises(ValueError):
+        simulate(reqs, _CO(500), GEOM, SHAPE, AddrMap(GEOM, "host-cacheline"),
+                 block_tokens=16, admission="vllm")

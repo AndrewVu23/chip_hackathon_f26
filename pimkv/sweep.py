@@ -35,7 +35,9 @@ def _run_cell(job: dict) -> dict:
     wkw = job.get("workload_kwargs") or {}
     tag = "".join(f"_{k[:2]}{v}" for k, v in sorted(wkw.items()))
     for k, short in (("headroom", "hr"), ("kv_shards", "sh"),
-                     ("coalesce", "cm")):
+                     ("coalesce", "cm"), ("model", "md"), ("addrmap", "am"),
+                     ("spec_adopt", "ad"), ("pim_scratch", "ps"),
+                     ("admission", "adm")):
         if job.get(k) != DEFAULTS[k]:
             tag += f"_{short}{job[k]}"
     name = (f"{job['workload']}_{job['allocator']}_{job['addrmap']}"
@@ -54,14 +56,16 @@ def _run_cell(job: dict) -> dict:
     fb = frame_blocks_for(geom, shape, bt)
     alloc = make_allocator(job["allocator"], pool, job["seed"],
                            frame_blocks=fb if job["allocator"] == "pim-aware"
-                           else 1)
-    spec = SpecParams() if job["workload"] == "spec" else None
+                           else 1, pim_scratch=job["pim_scratch"])
+    spec = (SpecParams(adopt=job["spec_adopt"])
+            if job["workload"] == "spec" else None)
     res = simulate(requests, alloc, geom, shape, am, block_tokens=bt,
                    max_batch=job["max_batch"],
                    sample_every=job["sample_every"],
                    sample_seqs=job["sample_seqs"], window=job["window"],
                    mode=job["coalesce"], timing=DEFAULT_TIMING,
-                   seed=job["seed"], frame_blocks=fb, spec=spec)
+                   seed=job["seed"], frame_blocks=fb, spec=spec,
+                   admission=job["admission"])
     res.df.to_csv(csv_path, index=False, float_format="%.8g")
     meta = dict(config={k: v for k, v in job.items() if k != "out_dir"},
                 summary={k: v for k, v in res.summary.items()
@@ -71,7 +75,9 @@ def _run_cell(job: dict) -> dict:
     row = dict(workload=job["workload"], allocator=job["allocator"],
                addrmap=job["addrmap"], block_tokens=bt, seed=job["seed"],
                headroom=job["headroom"], kv_shards=job["kv_shards"],
-               coalesce=job["coalesce"], csv=str(csv_path),
+               coalesce=job["coalesce"], model=job["model"],
+               spec_adopt=job["spec_adopt"], pim_scratch=job["pim_scratch"],
+               admission=job["admission"], csv=str(csv_path),
                **{k: v for k, v in wkw.items()})
     row.update({k: v for k, v in res.summary.items() if k != "runtime_s"})
     print(f"  done {name}: M1 {res.summary['m1_mean']:.3f}  "
@@ -84,7 +90,8 @@ DEFAULTS = dict(dram="hbm3-pim", addrmap="host-cacheline",
                 model="llama-gqa-8kv", requests=1000, max_batch=64,
                 sample_every=16, sample_seqs=8, window=64,
                 coalesce="window", pool_blocks=0, headroom=1.3,
-                kv_shards=1)
+                kv_shards=1, spec_adopt="splice", pim_scratch="separate",
+                admission="oracle")
 
 # cell key -> (job/workload-kwarg key, goes into workload_kwargs?)
 AXES = {
@@ -94,6 +101,10 @@ AXES = {
     "kv_shards": ("kv_shards", False),
     "coalesce_modes": ("coalesce", False),
     "addrmaps": ("addrmap", False),
+    "models": ("model", False),
+    "spec_adopts": ("spec_adopt", False),
+    "pim_scratch_modes": ("pim_scratch", False),
+    "admission_modes": ("admission", False),
     "prompt_lens": ("prompt_len", True),
     "arrival_rates": ("arrival_rate", True),
 }

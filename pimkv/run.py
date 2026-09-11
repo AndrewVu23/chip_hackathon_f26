@@ -75,6 +75,21 @@ def build_parser() -> argparse.ArgumentParser:
                    help="spec workload: draft tokens per branch (D)")
     p.add_argument("--spec-accept", type=float, default=0.8,
                    help="spec workload: draft i accepted with p**i")
+    p.add_argument("--spec-adopt", choices=("splice", "copyback"),
+                   default="splice",
+                   help="spec: splice = vLLM pointer-swap of the winning "
+                        "branch tail; copyback = copy accepted tokens into "
+                        "the sequence's own tail, free all branches")
+    p.add_argument("--pim-scratch", choices=("separate", "shared"),
+                   default="separate",
+                   help="pim-aware: draw spec branch tails from a shared "
+                        "scratch domain (Phase B2 fix) or from the "
+                        "sequence's own frame (Phase 2 behaviour)")
+    p.add_argument("--admission", choices=("oracle", "vllm"),
+                   default="oracle",
+                   help="oracle = reserve final footprint, no preemption "
+                        "(Phases 0-2); vllm = v0.2.7 scheduler: watermark "
+                        "admission + preempt-by-recompute (Phase D)")
     p.add_argument("--coalesce", choices=("window", "inorder"),
                    default="window",
                    help="PIM controller model: reorder within a window "
@@ -101,9 +116,9 @@ def main(argv: list[str] | None = None) -> int:
     fb = frame_blocks_for(geom, shape, block_tokens)
     alloc = make_allocator(args.allocator, pool_blocks, args.seed,
                            frame_blocks=fb if args.allocator == "pim-aware"
-                           else 1)
+                           else 1, pim_scratch=args.pim_scratch)
     spec = (SpecParams(width=args.spec_width, depth=args.spec_depth,
-                       accept=args.spec_accept)
+                       accept=args.spec_accept, adopt=args.spec_adopt)
             if args.workload == "spec" else None)
 
     res = simulate(requests, alloc, geom, shape, am,
@@ -111,7 +126,7 @@ def main(argv: list[str] | None = None) -> int:
                    sample_every=args.sample_every,
                    sample_seqs=args.sample_seqs, window=args.window,
                    mode=args.coalesce, timing=DEFAULT_TIMING, seed=args.seed,
-                   frame_blocks=fb, spec=spec)
+                   frame_blocks=fb, spec=spec, admission=args.admission)
 
     config = dict(vars(args), out=str(args.out) if args.out else None,
                   block_tokens_effective=block_tokens,
@@ -143,6 +158,9 @@ def main(argv: list[str] | None = None) -> int:
     print(f"M2 bank parallelism  mean={s['m2_mean']:.4f}  "
           f"p05={s['m2_p05']:.4f}  p95={s['m2_p95']:.4f}")
     print(f"M3 effective BW      mean={s['m3_gbps_mean']:.1f} GB/s")
+    if s["preemptions"]:
+        print(f"preemption           preemptions={s['preemptions']}  "
+              f"self={s['self_preemptions']}  dropped={s['dropped']}")
     if s["spec_stalls"] or s["copied_bytes"] or s["cow_copies"]:
         print(f"spec/CoW             cow_copies={s['cow_copies']}  "
               f"spec_stalls={s['spec_stalls']}  "

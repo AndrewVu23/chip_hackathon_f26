@@ -164,3 +164,16 @@ def test_pim_aware_fallback_to_partial_frames():
 def test_make_allocator_pads_pool_to_frames():
     a = make_allocator("pim-aware", 30, 0, frame_blocks=8)
     assert a.num_blocks == 32
+
+
+def test_pim_aware_scratch_segregation_keeps_frames_pure():
+    a = PimAware(64, blocks_per_frame=8, segregate_scratch=True)
+    a.admit(1, 4, 4)                       # frame 0: offsets 0..3
+    br = a.alloc_scratch(1, 4)             # must NOT land in frame 0
+    assert all(b // 8 != 0 for b in br)
+    a.unref_blocks(br)
+    assert a.append_block(1) == 4          # sequence continues contiguously
+    a.assert_conservation()
+    b = PimAware(64, blocks_per_frame=8, segregate_scratch=False)
+    b.admit(1, 4, 4)
+    assert all(x // 8 == 0 for x in b.alloc_scratch(1, 4))   # old behaviour

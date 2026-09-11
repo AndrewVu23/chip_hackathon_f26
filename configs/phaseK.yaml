@@ -1,0 +1,16 @@
+# Phase K — KV-head-count sensitivity (the non-proportional sharding axis
+# Phase C could not test). Same block size, three model shapes:
+#   mqa-1kv   512 B/token  -> bt16 block slice = 1/64 row-group per channel
+#   gqa-8kv  4096 B/token  -> 1/8   (Phases 0-2 default)
+#   mha-32kv 16384 B/token -> 1/2
+common:
+  dram: hbm3-pim
+  addrmap: host-cacheline
+  requests: 500
+  max_batch: 64
+cells:
+  - workloads: [steady, spec]
+    allocators: [paged, pim-aware, contiguous]
+    block_tokens: [16]
+    models: [mqa-1kv, llama-gqa-8kv, mha-32kv]
+    seeds: [0]

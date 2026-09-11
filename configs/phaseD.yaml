@@ -1,0 +1,16 @@
+# Phase D — vLLM-faithful admission + preempt-by-recompute vs the oracle
+# admission used in Phases 0-2. Under "vllm" the pool is oversubscribed
+# (no reservation of future growth), so free-list churn is production-like.
+# headroom < 1 forces preemption; 1.3 is the Phase 2 operating point.
+common:
+  dram: hbm3-pim
+  addrmap: host-cacheline
+  requests: 500
+  max_batch: 64
+cells:
+  - workloads: [steady, spec]
+    allocators: [paged, pim-aware]
+    block_tokens: [16]
+    admission_modes: [oracle, vllm]
+    headrooms: [0.6, 0.8, 1.0, 1.3]
+    seeds: [0]

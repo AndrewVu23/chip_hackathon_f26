@@ -260,11 +260,18 @@ class PimAware(KVAllocator):
     name = "pim-aware"
 
     def __init__(self, num_blocks: int, seed: int = 0, *,
-                 blocks_per_frame: int = 1) -> None:
+                 blocks_per_frame: int = 1,
+                 segregate_scratch: bool = True) -> None:
         super().__init__(num_blocks, seed)
         if num_blocks % blocks_per_frame:
             raise ValueError("num_blocks must be a multiple of blocks_per_frame")
         self.G = blocks_per_frame
+        # Phase B2: speculative branch tails are transient; drawing them
+        # from a sequence's own frame punches holes that smear the sequence
+        # across frames (frame_spread 1.0 -> 3.3 under spec, NOTES
+        # 2026-09-11). With segregation they come from a shared scratch
+        # affinity domain instead, so committed frames stay sequence-pure.
+        self.segregate_scratch = segregate_scratch
         self.n_frames = num_blocks // blocks_per_frame
         # per-frame min-heap of free offsets (ascending allocation)
         self.frame_free: list[list[int]] = [list(range(self.G))
@@ -310,6 +317,15 @@ class PimAware(KVAllocator):
         self._nfree += 1
         if len(self.frame_free[f]) == self.G:
             heapq.heappush(self.empty_frames, f)
+
+    SCRATCH_KEY = "scratch"   # one shared affinity domain for all branches
+
+    def alloc_scratch(self, seq_id: int, n: int) -> list[int]:
+        if not self.segregate_scratch:
+            return super().alloc_scratch(seq_id, n)
+        if self.num_free < n:
+            raise AdmissionFailure
+        return [self._alloc(self.SCRATCH_KEY) for _ in range(n)]
 
     def release(self, seq_id: int) -> None:
         super().release(seq_id)
@@ -443,10 +459,12 @@ ALLOCATORS = ("paged", "random", "contiguous", "pim-aware")
 
 
 def make_allocator(name: str, num_blocks: int, seed: int, *,
-                   frame_blocks: int = 1) -> KVAllocator:
+                   frame_blocks: int = 1,
+                   pim_scratch: str = "separate") -> KVAllocator:
     """Factory. ``frame_blocks`` (pim-aware only) = blocks per alignment
     frame; the caller derives it from geometry (see run.py) and pads
-    num_blocks to a multiple."""
+    num_blocks to a multiple. ``pim_scratch``: "separate" (Phase B2 fix) or
+    "shared" (Phase 2 behaviour, kept for A/B comparison)."""
     if name == "paged":
         return PagedFirstFit(num_blocks, seed)
     if name == "random":
@@ -455,5 +473,6 @@ def make_allocator(name: str, num_blocks: int, seed: int, *,
         return ContiguousOracle(num_blocks, seed)
     if name == "pim-aware":
         num_blocks = _ceil_div(num_blocks, frame_blocks) * frame_blocks
-        return PimAware(num_blocks, seed, blocks_per_frame=frame_blocks)
+        return PimAware(num_blocks, seed, blocks_per_frame=frame_blocks,
+                        segregate_scratch=(pim_scratch == "separate"))
     raise KeyError(name)

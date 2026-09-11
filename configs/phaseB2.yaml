@@ -1,0 +1,25 @@
+# Phase B2 — does segregating speculative scratch (+ copy-back adoption)
+# repair the spec dip diagnosed in Phase B?  2x2 A/B on pim-aware, plus the
+# vLLM-faithful paged baseline in both adoption modes for reference.
+common:
+  dram: hbm3-pim
+  addrmap: host-cacheline
+  requests: 500
+  max_batch: 64
+cells:
+  - workloads: [spec]
+    allocators: [pim-aware]
+    block_tokens: [4, 16, 64]
+    pim_scratch_modes: [shared, separate]
+    spec_adopts: [splice, copyback]
+    seeds: [0]
+  - workloads: [spec]
+    allocators: [paged]
+    block_tokens: [16]
+    spec_adopts: [splice, copyback]
+    seeds: [0]
+  - workloads: [steady]          # sanity: fix must not change steady
+    allocators: [pim-aware]
+    block_tokens: [16]
+    pim_scratch_modes: [separate]
+    seeds: [0]

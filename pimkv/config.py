@@ -162,8 +162,18 @@ DEFAULT_TIMING = PimTiming(tccd_ab_ns=4.3, trc_ns=45.0)
 # 4096 KV bytes per token per layer.
 LLAMA_GQA_8KV = ModelShape(name="llama-gqa-8kv", kv_heads=8, head_dim=128)
 
+# KV-head-count sensitivity axis (Phase C follow-up): the per-channel block
+# slice scales with kv_bytes_per_token, so fewer KV heads => smaller slice
+# => worse alignment at a fixed block size. MQA (1 KV head, e.g. Falcon /
+# PaLM-style) and classic MHA (32 KV heads, e.g. Llama-2-7B) bracket the
+# GQA default.
+MQA_1KV = ModelShape(name="mqa-1kv", kv_heads=1, head_dim=128)
+MHA_32KV = ModelShape(name="mha-32kv", kv_heads=32, head_dim=128)
+
 MODEL_PRESETS: dict[str, ModelShape] = {
     "llama-gqa-8kv": LLAMA_GQA_8KV,
+    "mqa-1kv": MQA_1KV,
+    "mha-32kv": MHA_32KV,
 }
 
 

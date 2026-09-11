@@ -420,3 +420,53 @@ which is exactly the direction GQA/MQA have taken the field — the same
 "direction of travel" argument the proposal makes for speculative decoding.
 Untested (would need model presets + ~6 runs, ~10 min); this is the
 sharpest remaining gap and should be either measured or stated plainly.
+
+## 2026-09-11 — PHASE K: KV-head count (configs/phaseK.yaml, 18 runs, bt16)
+
+The non-proportional axis Phase C could not test. Per-channel block slice
+= bt x kv_bytes_per_token / (channels x rowgroup_bytes): 1/64, 1/8, 1/2 of
+a row-group for MQA-1KV / GQA-8KV / MHA-32KV.
+
+| model | steady paged M1 | pim-aware | pa/paged M3 | spec paged | pim-aware | pa/paged |
+|---|--:|--:|--:|--:|--:|--:|
+| mqa-1kv  (512 B/tok)  | 0.561 | 0.918 | **6.04x** | 0.562 | 0.927 | 7.04x |
+| gqa-8kv  (4096 B/tok) | 0.785 | 0.963 | 2.14x | 0.760 | 0.873 | 1.53x |
+| mha-32kv (16384 B/tok)| 0.941 | 0.967 | 1.18x | 0.938 | 0.951 | 1.09x |
+
+Prediction confirmed: **the paged penalty grows as KV heads shrink** — the
+direction GQA/MQA have taken the field. At MHA the block is already half a
+row-group and mostly self-aligns; at MQA paged loses 6x. Note the pim-aware
+and contiguous ceilings drop to ~0.92/0.89 on MQA: a 400-token MQA
+sequence is only 6.4 KB per channel, under one row-group, so the
+per-sequence cold-start ACT (modeling decision 5, NOTES 2026-08-28) is
+amortized over ~12 commands instead of 32 — affects every allocator
+equally and is the conservative direction.
+
+## 2026-09-11 — PHASE B2: the spec fix works (configs/phaseB2.yaml)
+
+2x2 on pim-aware/spec: scratch domain {shared (Phase 2), separate} x
+adoption {splice (vLLM pointer swap), copyback (copy accepted tokens into
+the sequence's own tail, free all branches)}. 500 requests, host-cacheline.
+
+| bt | shared+splice (Phase 2) | shared+copyback | separate+splice | **separate+copyback** |
+|---:|--:|--:|--:|--:|
+| 4  | 0.954 / 1.49 | 0.959 / 1.23 | 0.700 / 12.9 | **0.963 / 1.000** |
+| 16 | 0.873 / 3.49 | 0.871 / 3.56 | 0.850 / 4.08 | **0.963 / 1.000** |
+| 64 | 0.942 / 1.57 | 0.948 / 1.43 | 0.942 / 1.57 | **0.963 / 1.000** |
+(M1 / frame_spread)
+
+**Both halves are necessary.** Copyback alone changes nothing (branches
+still churn the sequence's frame). Segregation alone is *harmful*: with
+splice the adopted branch block lives permanently in a scratch frame, so
+committed blocks end up smeared across scratch frames (spread 12.9 at
+bt=4). Together they make spec indistinguishable from steady: M1 0.963,
+frame_spread exactly 1.000 at every block size; bt16 M3 1796 -> 2795 GB/s.
+Cost: copied bytes 6858 -> 7443 MB per run (+8.5%, the accepted tokens),
+on top of the CoW copies every spec engine already pays. Copyback on the
+paged baseline: 0.760 -> 0.767, i.e. nothing — the fix is specific to
+frame-aligned placement. Steady is unchanged (0.963 / 1.000).
+
+Default flipped: pim-aware now uses separate scratch (`--pim-scratch`),
+spec adoption stays `splice` by default so the baseline remains
+vLLM-faithful; `--spec-adopt copyback` is the recommended pim-aware
+configuration and the headline figure should be regenerated with it.

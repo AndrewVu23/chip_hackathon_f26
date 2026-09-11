@@ -37,6 +37,7 @@ seed+2) -> byte-identical CSV (validation gate 4).
 from __future__ import annotations
 
 import time
+from collections import deque
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -55,6 +56,12 @@ class SpecParams:
     width: int = 4      # W draft branches per round
     depth: int = 3      # D draft tokens per branch
     accept: float = 0.8  # draft i accepted with accept**i
+    adopt: str = "splice"  # "splice": vLLM pointer-swap of the winning
+    #                        branch's tail into the block table (no copy);
+    #                        "copyback": accepted tokens are copied into the
+    #                        sequence's own tail (cost counted in
+    #                        copied_bytes) and ALL branch blocks are freed —
+    #                        committed blocks then never live in scratch.
 
     def scratch_blocks(self, block_tokens: int) -> int:
         """Worst-case tail blocks per branch: partial block + D drafts +
@@ -69,6 +76,9 @@ class SeqState:
     total_len: int       # prompt + output
     total_blocks: int    # final footprint incl. contiguous spec scratch
     scratch: list[int] = field(default_factory=list)
+    prefix_id: int | None = None
+    prefix_len: int = 0
+    preempts: int = 0
 
 
 @dataclass
@@ -147,7 +157,16 @@ def simulate(requests: list[Request], alloc: KVAllocator, geom: DramGeometry,
              sample_seqs: int = 8, window: int = 64, mode: str = "window",
              timing: PimTiming = DEFAULT_TIMING, seed: int = 0,
              check_every: int = 64, frame_blocks: int = 1,
-             spec: SpecParams | None = None) -> SimResult:
+             spec: SpecParams | None = None, admission: str = "oracle",
+             watermark: float = 0.01) -> SimResult:
+    """``admission``: "oracle" (Phases 0-2: reserve the final footprint, no
+    preemption) or "vllm" (Phase D: vLLM v0.2.7 scheduler semantics —
+    admit on prompt blocks + a 1% watermark, and when a running sequence
+    cannot get a block, preempt the most recently admitted other sequence
+    by RECOMPUTE: free all its blocks, keep its generated tokens as prompt,
+    re-queue it at the front). Under "vllm" the pool is genuinely
+    oversubscribed, so the free list churns the way it does in production.
+    """
     if shape.kv_bytes_per_token % geom.burst_bytes:
         raise ValueError("kv_bytes_per_token must be a multiple of burst_bytes")
     bpb = block_tokens * (shape.kv_bytes_per_token // geom.burst_bytes)
@@ -176,49 +195,101 @@ def simulate(requests: list[Request], alloc: KVAllocator, geom: DramGeometry,
     scratch_per_seq = (spec.scratch_blocks(bt) * spec.width
                        if (spec and alloc.persistent_scratch) else 0)
 
+    if admission not in ("oracle", "vllm"):
+        raise ValueError(f"unknown admission mode {admission!r}")
+    if admission == "vllm" and alloc.persistent_scratch:
+        raise ValueError("the contiguous oracle reserves whole spans up "
+                         "front; it only makes sense under oracle admission")
+    watermark_blocks = int(watermark * alloc.num_blocks)
+    waiting: deque[SeqState] = deque()   # preempted; recompute on re-admit
+    preemptions = 0
+    self_preemptions = 0
+
     def committed() -> int:
         return sum(s.total_blocks - len(alloc.get_table(s.rid))
                    - len(s.scratch) for s in active.values())
 
     # ---------------------------------------------------------------- admit
-    def try_admit(r: Request) -> bool:
+    def try_admit(st: SeqState) -> bool:
+        """Admit (or re-admit after preemption) ``st``. Its current
+        ``length`` is the prompt to prefill — recompute keeps the tokens
+        generated before preemption, exactly as vLLM does."""
         nonlocal frag_failures
-        total_blocks = _ceil_div(r.prompt_len + r.output_len, bt)
-        prompt_blocks = _ceil_div(r.prompt_len, bt)
+        total_blocks = _ceil_div(st.total_len, bt)
+        prompt_blocks = _ceil_div(st.length, bt)
+        total_with_scratch = total_blocks + scratch_per_seq
         shared: list[int] = []
-        if (r.prefix_id is not None and alloc.supports_sharing
-                and r.prefix_len >= bt):
-            if r.prefix_id not in prefix_cache:
-                n_shared = r.prefix_len // bt
-                cache_id = -1000 - r.prefix_id
-                if alloc.num_free - committed() < n_shared + total_blocks:
+        if (st.prefix_id is not None and alloc.supports_sharing
+                and st.prefix_len >= bt):
+            if st.prefix_id not in prefix_cache:
+                n_shared = st.prefix_len // bt
+                cache_id = -1000 - st.prefix_id
+                if admission == "oracle":
+                    ok = (alloc.num_free - committed()
+                          >= n_shared + total_with_scratch)
+                else:
+                    ok = alloc.num_free - prompt_blocks >= watermark_blocks
+                if not ok:
                     return False
                 try:
-                    prefix_cache[r.prefix_id] = alloc.admit(
+                    prefix_cache[st.prefix_id] = alloc.admit(
                         cache_id, n_shared, n_shared)
                 except AdmissionFailure:
                     frag_failures += 1
                     return False
-            shared = prefix_cache[r.prefix_id]
-        total_with_scratch = total_blocks + scratch_per_seq
-        new_needed = total_with_scratch - len(shared)
-        if alloc.num_free - committed() < new_needed:
-            return False
+            shared = prefix_cache[st.prefix_id]
+        n_new = prompt_blocks - len(shared)
+        if admission == "oracle":
+            if alloc.num_free - committed() < total_with_scratch - len(shared):
+                return False
+        else:
+            # vLLM v0.2.7 BlockSpaceManager.can_allocate (lines 103-120):
+            # free - prompt blocks >= watermark; future growth unreserved
+            if alloc.num_free - n_new < watermark_blocks:
+                return False
         try:
             if shared:
-                n_new = prompt_blocks - len(shared)
-                alloc.admit_shared(r.rid, shared, n_new, total_with_scratch)
+                alloc.admit_shared(st.rid, shared, n_new, total_with_scratch)
             else:
-                alloc.admit(r.rid, prompt_blocks, total_with_scratch)
+                alloc.admit(st.rid, prompt_blocks, total_with_scratch)
         except AdmissionFailure:
             frag_failures += 1
             return False
-        s = SeqState(rid=r.rid, length=r.prompt_len,
-                     total_len=r.prompt_len + r.output_len,
-                     total_blocks=total_with_scratch)
+        st.total_blocks = total_with_scratch
         if scratch_per_seq:
-            s.scratch = alloc.take_scratch(r.rid, scratch_per_seq)
-        active[r.rid] = s
+            st.scratch = alloc.take_scratch(st.rid, scratch_per_seq)
+        active[st.rid] = st
+        return True
+
+    def preempt(rid: int) -> None:
+        """vLLM v0.2.7 Scheduler._preempt_by_recompute: free every block,
+        keep generated tokens as prompt, re-queue at the FRONT of waiting."""
+        nonlocal preemptions
+        st = active.pop(rid)
+        if st.scratch:
+            alloc.unref_blocks(st.scratch)
+            st.scratch = []
+        alloc.release(rid)
+        st.preempts += 1
+        preemptions += 1
+        waiting.appendleft(st)
+
+    def ensure_free(s: SeqState, n: int) -> bool:
+        """vLLM mode: make room for ``n`` blocks for ``s`` by preempting the
+        most recently admitted OTHER sequences (Scheduler._schedule pops
+        victims from the tail of the running list). With no one else left,
+        ``s`` preempts itself and its step is abandoned (returns False).
+        Oracle mode never needs this (its admission gate guarantees room)."""
+        nonlocal self_preemptions
+        if admission == "oracle" or alloc.num_free >= n:
+            return True
+        while alloc.num_free < n:
+            others = [rid for rid in active if rid != s.rid]
+            if not others:
+                self_preemptions += 1
+                preempt(s.rid)
+                return False
+            preempt(others[-1])
         return True
 
     # ------------------------------------------------------------ spec round
@@ -236,6 +307,8 @@ def simulate(requests: list[Request], alloc: KVAllocator, geom: DramGeometry,
             # contiguous oracle: branches live in the fixed scratch region;
             # accepted tokens are copied into the span
             grow = _ceil_div(s.length + adv, bt) - _ceil_div(s.length, bt)
+            if not ensure_free(s, grow):
+                return
             for _ in range(grow):
                 alloc.append_block(s.rid)
             copied_tokens += adv
@@ -250,14 +323,30 @@ def simulate(requests: list[Request], alloc: KVAllocator, geom: DramGeometry,
         if alloc.num_free < spec.width * n_br:
             # pool too tight for branch tails: degrade to plain decode
             spec_stalls += 1
+            need = (s.length + 1) > len(alloc.get_table(s.rid)) * bt
+            if need and not ensure_free(s, 1):
+                return
             s.length += 1
-            if s.length > len(alloc.get_table(s.rid)) * bt:
+            if need:
                 alloc.append_block(s.rid)
             return
         branches = [alloc.alloc_scratch(s.rid, n_br)
                     for _ in range(spec.width)]
         if r:
             copied_tokens += spec.width * r   # each branch CoWs the tail
+        if spec.adopt == "copyback":
+            grow = _ceil_div(s.length + adv, bt) - _ceil_div(s.length, bt)
+            if grow and not ensure_free(s, grow):
+                for br in branches:
+                    alloc.unref_blocks(br)
+                return
+            for _ in range(grow):
+                alloc.append_block(s.rid)
+            copied_tokens += adv
+            for br in branches:
+                alloc.unref_blocks(br)
+            s.length += adv
+            return
         keep = _ceil_div(r + adv, bt) if r else _ceil_div(adv, bt)
         alloc.spec_round_adopt(s.rid, replace_tail=bool(r),
                                chosen=branches[w_star], keep=keep,
@@ -265,11 +354,33 @@ def simulate(requests: list[Request], alloc: KVAllocator, geom: DramGeometry,
         s.length += adv
 
     # ------------------------------------------------------------- main loop
-    while i < len(reqs) or active:
-        while (i < len(reqs) and reqs[i].arrival_step <= t
+    while i < len(reqs) or active or waiting:
+        # preempted sequences first (vLLM re-queues them at the front),
+        # then new arrivals; FCFS with head-of-line blocking throughout
+        blocked = False
+        while waiting and len(active) < max_batch:
+            st = waiting[0]
+            if (st.preempts > 1000
+                    or _ceil_div(st.length + 1, bt) > alloc.num_blocks):
+                waiting.popleft()
+                dropped.append(st.rid)          # can never fit / livelock
+                continue
+            if try_admit(st):
+                waiting.popleft()
+            elif not active:
+                waiting.popleft()
+                dropped.append(st.rid)
+            else:
+                blocked = True
+                break
+        while (not blocked and i < len(reqs) and reqs[i].arrival_step <= t
                and len(active) < max_batch):
             r = reqs[i]
-            if try_admit(r):
+            st = SeqState(rid=r.rid, length=r.prompt_len,
+                          total_len=r.prompt_len + r.output_len,
+                          total_blocks=0, prefix_id=r.prefix_id,
+                          prefix_len=r.prefix_len)
+            if try_admit(st):
                 i += 1
             elif not active:
                 dropped.append(r.rid)   # can never be placed; skip it
@@ -284,14 +395,19 @@ def simulate(requests: list[Request], alloc: KVAllocator, geom: DramGeometry,
             break
 
         finished = []
-        for s in active.values():
+        for s in list(active.values()):
+            if s.rid not in active:     # preempted earlier this step
+                continue
             if spec is not None:
                 spec_round(s)
             else:
+                need = (s.length + 1) > len(alloc.get_table(s.rid)) * bt
+                if need and not ensure_free(s, 1):
+                    continue
                 s.length += 1
-                if s.length > len(alloc.get_table(s.rid)) * bt:
+                if need:
                     alloc.append_block(s.rid)
-            if s.length >= s.total_len:
+            if s.rid in active and s.length >= s.total_len:
                 finished.append(s.rid)
         decode_steps += 1
         peak_live = max(peak_live, alloc.num_live)
@@ -338,6 +454,8 @@ def simulate(requests: list[Request], alloc: KVAllocator, geom: DramGeometry,
         cow_copies=alloc.cow_copies,
         spec_stalls=spec_stalls,
         copied_bytes=copied_tokens * shape.kv_bytes_per_token,
+        admission=admission, preemptions=preemptions,
+        self_preemptions=self_preemptions,
         m1_mean=float(df.m1.mean()) if len(df) else float("nan"),
         m1_p05=q("m1", 5), m1_p95=q("m1", 95),
         m2_mean=float(df.m2.mean()) if len(df) else float("nan"),

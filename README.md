@@ -18,7 +18,7 @@ spec this repo implements. `docs/NOTES.md` is the dated decision log.
 
 ```bash
 make install          # uv venv (python3.13) + editable install
-make test             # 74 tests incl. the 5 validation gates
+make test             # 75 tests incl. the 5 validation gates
 make kill-test        # Phase 0: baseline + bracketing runs -> results/phase0/
 ```
 
@@ -98,7 +98,7 @@ baseline) within a controller reorder window (`--window`, default 64;
 ```
 pimkv/          the package (config, addrmap, workload, allocator, pimmodel,
                 sim, run, sweep, plots, ramulator[Phase 3 harness])
-tests/          74 tests incl. the validation gates
+tests/          75 tests incl. the validation gates
 configs/        sweep configs (headline, heatmap, phaseA-D/K credibility sweeps)
 results/        run outputs: <name>.csv + <name>.csv.meta.json (gitignored)
 third_party/    vllm_ref (committed, cited) + ramulator2/attacc clones
@@ -196,4 +196,4 @@ bandwidth 3810 GB/s; `make sweep && make reproduce` regenerates everything.
   pimkv.ramulator`; bindings build recipe in third_party/README.md (the
   08-28 claim that it "already built" was wrong; corrected in NOTES).
 - Phase 4: demo assets — blog/ write-ups exist; video per brief §11.
-- Tests: `make test` (74 tests incl. the five validation gates).
+- Tests: `make test` (75 tests incl. the five validation gates).

@@ -132,9 +132,12 @@ measures.
   preemption the PIM-aware advantage shrinks (see results).
 - **Open-row state cold per sampled sequence**; batch interleaving between
   sequences' reads is not modeled (≤1 extra miss/channel/sample).
-- **Timing**: only tRC/tCCD_ab ≈ 10.5 is load-bearing (published
-  measurement). Ramulator 2 confirms the row-hit accounting; it cannot
-  model all-bank PIM commands, so M2 and absolute GB/s remain analytical.
+- **Timing**: M3 assumes a row miss costs a full tRC with no overlap
+  (ratio 10.5 from the published nRC/nCCDAB figure). AttAcc's PIM
+  controller overlaps activation, giving an effective ratio ~4.4, so M3
+  ratios are optimistic by ~1.4× — measured, not estimated (NOTES
+  2026-09-11). M1 and M2 are both simulator-confirmed; absolute GB/s
+  remain analytical.
 - **Channel-level load balance is out of scope**: M1-M3 rate per-command
   quality; they do not measure whether all channels stay busy.
 
@@ -168,15 +171,30 @@ bandwidth 3810 GB/s; `make sweep && make reproduce` regenerates everything.
   64-burst controller reorder window; with zero reordering it is 1.24×
   (direction and shape invariant). (2) Under heavy vLLM-style preemption
   (0.6× pool headroom, ~200 recompute preemptions) the steady advantage
-  shrinks to 1.38× — re-admission bursts land in fragmented frames; fix
-  candidates logged. (3) The contiguous oracle's 8.9% makespan penalty is
-  purchasable: it vanishes at 2× pool headroom. (4) Long-context traffic is
-  nearly immune under any allocator — the penalty is churn, not length.
-- **Cross-validated against Ramulator 2** on the same block tables:
-  Ramulator's row-hit fraction under its own FR-FCFS controller matches M1
-  within 0.003 on every sample (paged 0.797/0.799, PIM-aware 0.963/0.964,
-  contiguous 0.957/0.958). Stock Ramulator has no all-bank PIM command, so
-  this validates the row-locality half of the model, not M2.
+  shrinks to 1.38× — re-admission bursts land in fragmented frames. **Two
+  fixes were implemented and both failed**: best-fit frame planning is a
+  no-op (the old greedy path already chose the same frames), and
+  opportunistic compaction is actively harmful (it scatters a sequence's
+  own blocks to free donor frames, costing up to 10k block copies for
+  *worse* M1). Reported as negative results; a correct compaction would
+  relocate whole sequences, not blocks. (3) The contiguous oracle's 8.9%
+  makespan penalty is purchasable: it vanishes at 2× pool headroom. (4)
+  Long-context traffic is nearly immune under any allocator — the penalty
+  is churn, not length. (5) Batch size at a fixed pool does not change the
+  picture (advantage 2.43×→2.14× from batch 16→256).
+- **Cross-validated against two DRAM simulators.** Stock Ramulator 2: the
+  row-hit fraction under its own FR-FCFS controller matches M1 within 0.003
+  on every sample. AttAcc's all-bank PIM extension (`python -m pimkv.attacc`,
+  real `PIM_MAC_AB` commands): **M2 confirmed quantitatively** — our model
+  predicts 8.0x more all-bank commands when bank parallelism collapses
+  (0.988 -> 0.124), AttAcc measures 7.3x more cycles.
+- **Known overstatement, measured**: M3's row-miss penalty uses the
+  published nRC/nCCDAB ratio (10.5) with no ACT overlap; AttAcc's PIM
+  controller overlaps activation with useful work, giving an *effective*
+  ratio near 4.4. So M3 **ratios are optimistic by ~1.4x** on the M1-driven
+  component (the M2-driven component is accurate): the 2.3x steady headline
+  is ~1.6x on AttAcc timing. Direction, ordering, and every block-size /
+  address-map conclusion are unaffected.
 - Seeds: worst max−min spread of M1 across 24 cells × 3 seeds is 0.0079.
 
 ## Phase status
@@ -192,8 +210,10 @@ bandwidth 3810 GB/s; `make sweep && make reproduce` regenerates everything.
 - **Credibility sweeps (A–D, K): DONE** — seeds, reorder window, pool
   headroom, KV-head sharding (proportional: invariant; head count: 6×→1.2×),
   vLLM admission + preempt-by-recompute (`--admission vllm`).
-- **Phase 3 (Ramulator 2): DONE for row locality** — `python -m
-  pimkv.ramulator`; bindings build recipe in third_party/README.md (the
-  08-28 claim that it "already built" was wrong; corrected in NOTES).
+- **Phase 3 (DRAM cross-validation): DONE, both halves** — `python -m
+  pimkv.ramulator` (stock Ramulator 2: M1) and `python -m pimkv.attacc`
+  (AttAcc all-bank PIM extension: M2). Build recipes in
+  third_party/README.md (the 08-28 claim that Ramulator "already built"
+  was wrong; corrected in NOTES).
 - Phase 4: demo assets — blog/ write-ups exist; video per brief §11.
 - Tests: `make test` (75 tests incl. the five validation gates).

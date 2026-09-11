@@ -1,6 +1,6 @@
 PY := .venv/bin/python
 
-.PHONY: venv install test kill-test sweep credibility ramulator reproduce clean
+.PHONY: venv install test kill-test sweep credibility ramulator attacc reproduce clean
 
 venv:
 	uv venv --python python3.13 .venv
@@ -51,11 +51,21 @@ clean:
 # Credibility sweeps (seeds, reorder window, headroom, sharding, KV heads,
 # preemption, spec fix). ~2 h total at 8 workers; each writes summary.csv.
 credibility:
-	for c in phaseA phaseB phaseC phaseK phaseB2 phaseD phaseD_specfix headline_specfix; do \
+	for c in phaseA phaseB phaseC phaseK phaseB2 phaseD phaseD_specfix \
+	         phaseD2 phaseD3 phaseA4 headline_specfix; do \
 	  $(PY) -m pimkv.sweep --config configs/$$c.yaml --out results/$$c/ --jobs 8; done
 
 # Phase 3: Ramulator 2 row-locality cross-validation (needs the bindings;
 # build recipe in third_party/README.md).
+# Phase 3a: stock Ramulator 2 — validates M1 (row locality).
 ramulator:
 	$(PY) -m pimkv.ramulator --workload steady --block-tokens 16 --samples 3 \
 	  --out results/phaseE/
+
+# Phase 3b: AttAcc's all-bank PIM extension — validates M2. The two maps
+# bracket bank parallelism (0.988 vs 0.124) on identical sequences.
+attacc:
+	$(PY) -m pimkv.attacc --addrmap host-cacheline --samples 3 \
+	  --out results/phaseE2/
+	$(PY) -m pimkv.attacc --addrmap host-centric --samples 3 \
+	  --out results/phaseE2_hostcentric/

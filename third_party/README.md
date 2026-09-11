@@ -50,3 +50,29 @@ git -C third_party/attacc_simulator checkout c60005143a6b492d7ef83231723386478b5
 
 Reference only (AttAcc PIM-attention simulator, HPCA'24): consulted for
 PIM command semantics and timing sanity; no code is imported from it.
+
+## attacc_simulator/ramulator2 — the all-bank PIM build (Phase E2)
+
+AttAcc ships a Ramulator 2 extension implementing all-bank PIM MAC
+(`PIM_MAC_AB`), which stock Ramulator lacks. `pimkv/attacc.py` uses it to
+validate M2. Its base commit is **not reachable from any current upstream
+branch** (Ramulator restructured its tree), so it must be fetched by SHA:
+
+```bash
+cd third_party/attacc_simulator
+rm -rf ramulator2 && git clone https://github.com/CMU-SAFARI/ramulator2.git ramulator2
+cd ramulator2
+git fetch origin b7c70275f04126c647edb989270cc429776955d1   # required: not on any branch
+git checkout b7c70275f04126c647edb989270cc429776955d1
+cd .. && bash set_pim_ramulator.sh          # copies PIM sources + applies 21 patches
+# same Apple clang 21 dependent-template fix as the modern tree:
+sed -i '' 's/return _config\[_name\]\.as<T>();/return _config[_name].template as<T>();/' \
+  ramulator2/src/base/param.h
+cd ramulator2 && mkdir -p build && cd build
+env -u CXXFLAGS -u CFLAGS -u LDFLAGS cmake .. -DCMAKE_BUILD_TYPE=Release
+env -u CXXFLAGS -u CFLAGS -u LDFLAGS make -j6     # -> build/ramulator2
+```
+
+Geometry note: org preset `HBM3_8Gb_2R` with `channel: 16` is exactly our
+`hbm3-pim` preset — 16 ch x 2 pseudo-channels = 32 all-bank domains, 4 bank
+groups x 4 banks, 16384 rows, 32 columns x 32 B = 1 KB rows.

@@ -38,7 +38,8 @@ def _run_cell(job: dict) -> dict:
                      ("coalesce", "cm"), ("model", "md"), ("addrmap", "am"),
                      ("spec_adopt", "ad"), ("pim_scratch", "ps"),
                      ("admission", "adm"), ("pim_plan", "pl"),
-                     ("pim_compact", "cp")):
+                     ("pim_compact", "cp"), ("max_batch", "mb"),
+                     ("requests", "rq")):
         if job.get(k) != DEFAULTS[k]:
             tag += f"_{short}{job[k]}"
     name = (f"{job['workload']}_{job['allocator']}_{job['addrmap']}"

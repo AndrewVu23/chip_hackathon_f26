@@ -655,9 +655,14 @@ isolates bank parallelism cleanly:
 | host-centric | 0.124 | 21,163 | 8,043 |
 
 Our model predicts 0.988/0.124 = **8.0x** more all-bank commands for the
-same KV bytes; AttAcc measures **7.3x** more cycles. **M2 is real and
-quantitatively confirmed** — the bank-parallelism term is not a modeling
-artifact.
+same KV bytes. AttAcc measures, per allocator: pim-aware **7.4x**,
+contiguous **7.3x**, paged **5.3x** more cycles (mean 6.7x). **M2 is real
+and quantitatively confirmed** — the bank-parallelism term is not a
+modeling artifact. The two well-aligned allocators land within 8% of the
+prediction; paged's ratio is compressed because its host-cacheline baseline
+is ALREADY degraded by row misses (M1 0.80), so it has less headroom to
+lose. Reported per-allocator in figures/validation.png rather than as a
+single average, since the average hides that structure.
 
 **M1's timing factor is overstated, though.** Within host-cacheline,
 paged vs pim-aware need identical command counts, so the difference is pure

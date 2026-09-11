@@ -203,11 +203,163 @@ def m1_hist(csv_path: Path, out_path: Path) -> None:
     plt.close(fig)
 
 
+def kvheads(summary_csv: Path, out_path: Path) -> None:
+    """Phase K: M1 by KV-head count (model shape) x allocator, steady, bt16."""
+    df = pd.read_csv(summary_csv)
+    df = df[df.workload == "steady"]
+    order = [("mqa-1kv", "MQA\n1 KV head\n512 B/token"),
+             ("llama-gqa-8kv", "GQA\n8 KV heads\n4 KB/token"),
+             ("mha-32kv", "MHA\n32 KV heads\n16 KB/token")]
+    allocs = ["paged", "pim-aware", "contiguous"]
+    x = np.arange(len(order)); width = 0.26
+    fig, ax = plt.subplots(figsize=(9, 5.2))
+    _style_axis(ax)
+    for k, al in enumerate(allocs):
+        vals = [float(df[(df.model == m) & (df.allocator == al)].m1_mean.mean())
+                for m, _ in order]
+        bars = ax.bar(x + (k - 1) * width, vals, width * 0.92,
+                      color=ALLOC_COLOR[al], label=ALLOC_LABEL[al],
+                      edgecolor=SURFACE, linewidth=2, zorder=3)
+        for b, v in zip(bars, vals):
+            ax.annotate(f"{v:.2f}", (b.get_x() + b.get_width() / 2, v),
+                        ha="center", va="bottom", fontsize=10, color=INK,
+                        xytext=(0, 2), textcoords="offset points")
+    labels = []
+    for i, (m, lbl) in enumerate(order):
+        r = (df[(df.model == m) & (df.allocator == "pim-aware")].m3_gbps_mean.mean()
+             / df[(df.model == m) & (df.allocator == "paged")].m3_gbps_mean.mean())
+        labels.append(f"{lbl}\nPIM-aware gains {r:.1f}×")
+    ax.set_xticks(x, labels)
+    ax.set_ylabel("M1 — all-bank row-hit rate")
+    ax.set_ylim(0, 1.06)
+    ax.set_yticks([0, 0.2, 0.4, 0.6, 0.8, 1.0])
+    ax.set_title("The penalty grows as models shed KV heads — 16-token blocks",
+                 color=INK, fontsize=14, pad=34)
+    ax.legend(fontsize=10.5, framealpha=0, loc="lower center",
+              bbox_to_anchor=(0.5, 1.005), ncol=3)
+    fig.tight_layout()
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out_path, dpi=160)
+    plt.close(fig)
+
+
+def validation(e2_csv: Path, e2hc_csv: Path, out_path: Path) -> None:
+    """Phase E2: our model vs AttAcc's all-bank PIM Ramulator.
+    Left: relative throughput per allocator on the realistic map (row-miss
+    effect). Right: cross-map ratio for the same sequences (bank-parallelism
+    effect): commands predicted vs cycles measured."""
+    a = pd.read_csv(e2_csv); b = pd.read_csv(e2hc_csv)
+    allocs = ["paged", "pim-aware", "contiguous"]
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 5), width_ratios=[3, 2])
+    for ax in (ax1, ax2):
+        _style_axis(ax)
+    g = a.groupby("allocator")[["m3_gbps", "attacc_cycles", "kv_bytes"]].mean()
+    g["cpk"] = g.attacc_cycles / (g.kv_bytes / 1024)
+    model_rel = g.m3_gbps / g.m3_gbps.max()
+    att_rel = g.cpk.min() / g.cpk
+    x = np.arange(len(allocs)); w = 0.36
+    b1 = ax1.bar(x - w / 2, [model_rel[al] for al in allocs], w * 0.94,
+                 color=[ALLOC_COLOR[al] for al in allocs], edgecolor=SURFACE,
+                 linewidth=2, zorder=3, label="analytical model (M3)")
+    b2 = ax1.bar(x + w / 2, [att_rel[al] for al in allocs], w * 0.94,
+                 color=[ALLOC_COLOR[al] for al in allocs], edgecolor=INK,
+                 linewidth=1.2, hatch="//", alpha=0.55, zorder=3,
+                 label="AttAcc all-bank PIM simulator (cycles)")
+    for bars in (b1, b2):
+        for bb in bars:
+            ax1.annotate(f"{bb.get_height():.2f}", (bb.get_x() + bb.get_width() / 2,
+                         bb.get_height()), ha="center", va="bottom", fontsize=10,
+                         color=INK, xytext=(0, 2), textcoords="offset points")
+    ax1.set_xticks(x, [ALLOC_LABEL[al] for al in allocs])
+    ax1.set_ylim(0, 1.15)
+    ax1.set_ylabel("throughput relative to best (higher is better)")
+    ax1.set_title("Same sequences, realistic host map", color=INK, fontsize=13)
+    ax1.legend(fontsize=10, framealpha=0.95, loc="upper left")
+
+    gc = b.groupby("allocator")[["n_cmds", "attacc_cycles"]].mean()
+    ga = a.groupby("allocator")[["n_cmds", "attacc_cycles"]].mean()
+    xs = np.arange(len(allocs)); w2 = 0.36
+    pred = [float(gc.n_cmds[al] / ga.n_cmds[al]) for al in allocs]
+    meas = [float(gc.attacc_cycles[al] / ga.attacc_cycles[al]) for al in allocs]
+    p1 = ax2.bar(xs - w2 / 2, pred, w2 * 0.94,
+                 color=[ALLOC_COLOR[al] for al in allocs], edgecolor=SURFACE,
+                 linewidth=2, zorder=3, label="commands predicted (model)")
+    p2 = ax2.bar(xs + w2 / 2, meas, w2 * 0.94,
+                 color=[ALLOC_COLOR[al] for al in allocs], edgecolor=INK,
+                 linewidth=1.2, hatch="//", alpha=0.55, zorder=3,
+                 label="cycles measured (AttAcc)")
+    for bars in (p1, p2):
+        for bb in bars:
+            ax2.annotate(f"{bb.get_height():.1f}×",
+                         (bb.get_x() + bb.get_width() / 2, bb.get_height()),
+                         ha="center", va="bottom", fontsize=10, color=INK,
+                         xytext=(0, 2), textcoords="offset points")
+    ax2.set_xticks(xs, [ALLOC_LABEL[al].split(" (")[0] for al in allocs])
+    ax2.set_ylim(0, max(pred + meas) * 1.22)
+    ax2.set_ylabel("host-centric ÷ host-cacheline (same sequences)")
+    ax2.set_title("Bank parallelism collapse (M2)", color=INK, fontsize=13)
+    ax2.legend(fontsize=9.5, framealpha=0.9, loc="upper left")
+    fig.suptitle("Cross-validation against a cycle-level all-bank PIM simulator",
+                 color=INK, fontsize=14, y=1.0)
+    fig.tight_layout()
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out_path, dpi=160, bbox_inches="tight")
+    plt.close(fig)
+
+
+def pressure(d_csv: Path, specfix_csv: Path, out_path: Path) -> None:
+    """Phase D: M1 vs pool headroom under vLLM admission + preemption."""
+    d = pd.read_csv(d_csv); f = pd.read_csv(specfix_csv)
+    fig, ax = plt.subplots(figsize=(8.5, 5))
+    _style_axis(ax)
+    v = d[d.admission == "vllm"]
+    series = [("paged", "steady", v[(v.allocator == "paged") & (v.workload == "steady")], "-"),
+              ("pim-aware", "steady", v[(v.allocator == "pim-aware") & (v.workload == "steady")], "-"),
+              ("paged", "spec", v[(v.allocator == "paged") & (v.workload == "spec")], "--"),
+              ("pim-aware", "spec", f[f.admission == "vllm"], "--")]
+    for al, wl, s, ls in series:
+        s = s.sort_values("headroom")
+        ax.plot(s.headroom, s.m1_mean, ls, color=ALLOC_COLOR[al], lw=2,
+                marker="o", ms=5, zorder=3)
+    pre = v[(v.allocator == "pim-aware") & (v.workload == "steady")].sort_values("headroom")
+    hs = list(pre.headroom)
+    for h, m, n in zip(pre.headroom, pre.m1_mean, pre.preemptions):
+        # keep the end labels inside the axes
+        ha = "left" if h == hs[0] else ("right" if h == hs[-1] else "center")
+        dx = 6 if ha == "left" else (-6 if ha == "right" else 0)
+        ax.annotate(f"{int(n)} preemptions", (h, m), textcoords="offset points",
+                    xytext=(dx, -17), ha=ha, fontsize=9.5, color=MUTED)
+    from matplotlib.lines import Line2D
+    handles = [Line2D([], [], color=ALLOC_COLOR[a], lw=2.5, label=ALLOC_LABEL[a])
+               for a in ("paged", "pim-aware")]
+    handles += [Line2D([], [], color=INK, lw=1.8, ls=s, label=f"{w} workload")
+                for w, s in (("steady", "-"), ("spec", "--"))]
+    ax.legend(handles=handles, fontsize=10.5, framealpha=0.9, loc="center right")
+    ax.axvline(1.0, color=MUTED, lw=1.2, ls=(0, (2, 3)), zorder=1)
+    ax.annotate("pool = mean demand", (1.0, 0.71), fontsize=10, color=MUTED,
+                xytext=(6, 0), textcoords="offset points")
+    ax.set_xlabel("KV pool size ÷ mean demand (headroom)")
+    ax.set_ylabel("M1 — all-bank row-hit rate")
+    ax.set_ylim(0.7, 1.0)
+    ax.set_xlim(0.55, 1.38)
+    ax.set_title("Under real preemption, the benefit shrinks when the pool is "
+                 "oversubscribed", color=INK, fontsize=13.5, pad=10)
+    fig.tight_layout()
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out_path, dpi=160)
+    plt.close(fig)
+
 def main(argv: list[str] | None = None) -> int:
     args = argv if argv is not None else sys.argv[1:]
     if len(args) == 3 and args[0] == "m1-hist":
         m1_hist(Path(args[1]), Path(args[2]))
         return 0
+    if len(args) == 3 and args[0] == "kvheads":
+        kvheads(Path(args[1]), Path(args[2])); return 0
+    if len(args) == 4 and args[0] == "validation":
+        validation(Path(args[1]), Path(args[2]), Path(args[3])); return 0
+    if len(args) == 4 and args[0] == "pressure":
+        pressure(Path(args[1]), Path(args[2]), Path(args[3])); return 0
     if len(args) == 3 and args[0] == "heatmap":
         heatmap(Path(args[1]), Path(args[2]))
         return 0
@@ -229,3 +381,5 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+
+

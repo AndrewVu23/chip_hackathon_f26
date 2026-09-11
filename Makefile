@@ -1,6 +1,6 @@
 PY := .venv/bin/python
 
-.PHONY: venv install test kill-test reproduce clean
+.PHONY: venv install test kill-test sweep credibility ramulator reproduce clean
 
 venv:
 	uv venv --python python3.13 .venv
@@ -47,3 +47,15 @@ reproduce: kill-test sweep
 
 clean:
 	rm -rf results figures .pytest_cache
+
+# Credibility sweeps (seeds, reorder window, headroom, sharding, KV heads,
+# preemption, spec fix). ~2 h total at 8 workers; each writes summary.csv.
+credibility:
+	for c in phaseA phaseB phaseC phaseK phaseB2 phaseD phaseD_specfix headline_specfix; do \
+	  $(PY) -m pimkv.sweep --config configs/$$c.yaml --out results/$$c/ --jobs 8; done
+
+# Phase 3: Ramulator 2 row-locality cross-validation (needs the bindings;
+# build recipe in third_party/README.md).
+ramulator:
+	$(PY) -m pimkv.ramulator --workload steady --block-tokens 16 --samples 3 \
+	  --out results/phaseE/

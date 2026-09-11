@@ -122,9 +122,22 @@ def _collect(stats, keys=("row_hits", "row_misses", "row_conflicts",
     return out
 
 
-def run_ramulator(trace_path: Path, n_channels: int) -> dict:
+def run_ramulator(trace_path: Path, n_channels: int,
+                  mem_clock_ratio: int = 64) -> dict:
+    """``mem_clock_ratio``: frontend clock ticks per memory clock tick.
+    In Ramulator 2 a component's ``clock_ratio`` is its frequency relative
+    to the base clock (LARGER = FASTER; the stock example runs the CPU
+    frontend at 8 and DRAM at 3). The trace frontend issues at most ONE
+    request per frontend tick, so at 1:1 sixteen channels never saturate
+    and 'cycles' just counts issues (cycles/burst == 1.0, observed; with
+    the ratio applied the wrong way round, == 64.0, also observed). With
+    the frontend ``mem_clock_ratio`` times faster than the memory, up to
+    that many requests arrive per memory cycle, controller queues fill,
+    send() back-pressures, and the memory cycle count becomes
+    DRAM-throughput-limited — the quantity to compare across allocators."""
     rm = import_ramulator()
-    fe = rm.frontend.ReadWriteTrace(clock_ratio=1, path=str(trace_path))
+    fe = rm.frontend.ReadWriteTrace(clock_ratio=mem_clock_ratio,
+                                    path=str(trace_path))
     ctrls = []
     for _ in range(n_channels):
         dram = rm.dram.HBM3(org_preset="HBM3_4Gb",
@@ -161,6 +174,9 @@ def main(argv: list[str] | None = None) -> int:
                    help="capture at the first sampled step >= this (lets "
                         "the free list churn first)")
     p.add_argument("--spec-adopt", default="copyback")
+    p.add_argument("--mem-clock-ratio", type=int, default=64,
+                   help="memory ticks per frontend tick; >16 makes the run "
+                        "DRAM-bound so cycles measure throughput")
     p.add_argument("--out", type=Path, default=Path("results/phaseE"))
     args = p.parse_args(argv)
 
@@ -195,7 +211,7 @@ def main(argv: list[str] | None = None) -> int:
             ours = measure_seq(type("S", (), dict(rid=rid, length=length))(),
                                table, am, geom, shape, DEFAULT_TIMING, bt,
                                64, "window", fb)
-            r = run_ramulator(trace, n_channels)
+            r = run_ramulator(trace, n_channels, args.mem_clock_ratio)
             acc = r["row_hits"] + r["row_misses"] + r["row_conflicts"]
             row = dict(workload=args.workload, allocator=al, block_tokens=bt,
                        seq_id=rid, step=step, seq_len=length, n_bursts=n,
@@ -205,7 +221,8 @@ def main(argv: list[str] | None = None) -> int:
                        ram_hit_frac=(r["row_hits"] / acc if acc else float("nan")),
                        ram_cycles=r["cycles"],
                        ram_cycles_per_burst=(r["cycles"] / n if n else float("nan")),
-                       ram_stats_found=";".join(r["_found"]), wall_s=r["wall_s"])
+                       ram_stats_found=";".join(r["_found"]), wall_s=r["wall_s"],
+                       mem_clock_ratio=args.mem_clock_ratio)
             rows.append(row)
             print(f"  {al:11s} seq {rid:5d} len {length:5d}  ours M1 {ours['m1']:.3f}"
                   f"  ram hit {row['ram_hit_frac']:.3f}  cyc/burst "

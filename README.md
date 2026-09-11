@@ -18,7 +18,7 @@ spec this repo implements. `docs/NOTES.md` is the dated decision log.
 
 ```bash
 make install          # uv venv (python3.13) + editable install
-make test             # 49 tests incl. the 5 validation gates
+make test             # 74 tests incl. the 5 validation gates
 make kill-test        # Phase 0: baseline + bracketing runs -> results/phase0/
 ```
 
@@ -41,7 +41,7 @@ user-local (venv + `third_party/` clones); nothing needs sudo.
 ## What gets simulated (and what deliberately not)
 
 ```
-workload.py   request streams: steady | longctx | prefix* | spec*   (*Phase 1)
+workload.py   request streams: steady | longctx | prefix | spec | fixedlen
    |              Poisson arrivals, deterministic per seed
    v
 sim.py        continuous-batching decode loop (1 step = 1 engine iteration):
@@ -51,7 +51,7 @@ sim.py        continuous-batching decode loop (1 step = 1 engine iteration):
 allocator.py  paged   = vLLM v0.2.7 BlockAllocator port (LIFO free list;
    |                    cited to file+commit+lines in the docstring)
    |          contiguous = oracle upper bound (whole-span reservation)
-   |          random  = gate-2 reference        pim-aware = Phase 2
+   |          random  = gate-2 reference        pim-aware = frame-aligned
    v
 addrmap.py    linear KV address -> (channel, bank-group, bank, row, col)
    |          host-centric (ro:bg:ba:ch:co) | host-cacheline | pim-friendly
@@ -97,9 +97,9 @@ baseline) within a controller reorder window (`--window`, default 64;
 
 ```
 pimkv/          the package (config, addrmap, workload, allocator, pimmodel,
-                sim, run, plots, ramulator[Phase 3 stub])
-tests/          49 tests incl. the validation gates
-configs/        sweep configs (headline.yaml = Phase 2 placeholder)
+                sim, run, sweep, plots, ramulator[Phase 3 harness])
+tests/          74 tests incl. the validation gates
+configs/        sweep configs (headline, heatmap, phaseA-D/K credibility sweeps)
 results/        run outputs: <name>.csv + <name>.csv.meta.json (gitignored)
 third_party/    vllm_ref (committed, cited) + ramulator2/attacc clones
                 (pinned, re-fetch per third_party/README.md)
@@ -126,51 +126,74 @@ measures.
   placement patterns are identical per layer.
 - **Within-block layout assumed PIM-optimal**; the allocator owns only
   inter-block placement (the correct boundary for an allocator study).
-- **Oracle admission** (final lengths known, full-footprint reservation,
-  FCFS, no preemption/swap). Identical across policies; real preemption
-  would churn the free list harder, so the baseline shown is the gentle one.
+- **Oracle admission by default** (final lengths known, full-footprint
+  reservation, no preemption). `--admission vllm` ports v0.2.7 watermark
+  admission + preempt-by-recompute; swap-to-CPU is not modeled. Under heavy
+  preemption the PIM-aware advantage shrinks (see results).
 - **Open-row state cold per sampled sequence**; batch interleaving between
   sequences' reads is not modeled (≤1 extra miss/channel/sample).
 - **Timing**: only tRC/tCCD_ab ≈ 10.5 is load-bearing (published
-  measurement); absolute ns pending Phase 3 Ramulator 2 cross-validation.
+  measurement). Ramulator 2 confirms the row-hit accounting; it cannot
+  model all-bank PIM commands, so M2 and absolute GB/s remain analytical.
 - **Channel-level load balance is out of scope**: M1-M3 rate per-command
   quality; they do not measure whether all channels stay busy.
 
-## Headline results (docs/NOTES.md 2026-09-10 has the full tables)
+## Headline results (docs/NOTES.md has every table, dated)
 
-All on hbm3-pim with the realistic host-cacheline map, 1000 requests,
-seed 0; ideal all-bank bandwidth 3810 GB/s; `make sweep && make reproduce`
-regenerates everything.
+All on hbm3-pim with the realistic host-cacheline map; ideal all-bank
+bandwidth 3810 GB/s; `make sweep && make reproduce` regenerates everything.
 
-- **The PIM-aware allocator recovers the whole steady-state gap at every
-  block size**: M1 0.963 (the 1−1/cols geometric ceiling) from 4-token to
-  256-token blocks — 2.3× effective bandwidth over the vLLM-port baseline
-  at the standard 16-token block (2805 vs 1226 GB/s), 6.5× at 4 tokens —
-  while the contiguous oracle pays 8.9% longer makespan in admission stalls
-  and cannot prefix-share.
+- **The PIM-aware allocator recovers the whole gap at every block size.**
+  M1 0.963 (the 1−1/cols geometric ceiling) from 4- to 256-token blocks on
+  steady traffic — 2.3× the vLLM-port baseline's effective bandwidth at the
+  standard 16-token block (2805 vs 1226 GB/s), 6.5× at 4 tokens. With the
+  speculative-decoding fix below it holds the same 0.963 on the `spec`
+  workload (2.4× over paged).
 - **Two levers, same destination**: at the derived 128-token block size all
   three allocators converge to 0.963. Use 128-token blocks, or keep 16 and
   place alignment-aware.
-- **Tree speculative decoding is adversarial as hypothesized**: branch
-  fork/free churn drags the paged baseline to 0.756 and dents even the
-  PIM-aware allocator to 0.879 at bt=16 (seed-stable) — the honest
-  limitation of frame-affinity placement, analyzed in NOTES.
-- **longctx is nearly immune under any allocator** (paged 0.963): prefill
-  allocates hundreds of blocks in one burst that even a LIFO free list
-  serves in long runs. The paged penalty is a churn phenomenon, not a
-  length phenomenon.
+- **Structural confirmation, no DRAM model needed**: vLLM's LIFO free list
+  leaves only 3–7% of a sequence's consecutive blocks physically adjacent
+  and smears sequences over 5–16× more alignment frames than they need
+  (`placement_diagnostics`).
+- **Speculative decoding needs two changes to frame-aligned placement**:
+  draft branch tails must come from a segregated scratch domain AND the
+  accepted tokens must be copied back into the sequence's own tail (+8.5%
+  copy bytes). Either alone fails; together spec is indistinguishable from
+  steady. Diagnosed via frame_spread (1.0 → 3.3 → 1.0).
+- **The problem grows as models shed KV heads**: at 16-token blocks the
+  paged penalty is 1.2× (MHA, 32 KV heads), 2.1× (GQA, 8), 6.0× (MQA, 1) —
+  the direction the field is moving.
+- **Honest limits found by the credibility sweeps**: (1) the 2.3× assumes a
+  64-burst controller reorder window; with zero reordering it is 1.24×
+  (direction and shape invariant). (2) Under heavy vLLM-style preemption
+  (0.6× pool headroom, ~200 recompute preemptions) the steady advantage
+  shrinks to 1.38× — re-admission bursts land in fragmented frames; fix
+  candidates logged. (3) The contiguous oracle's 8.9% makespan penalty is
+  purchasable: it vanishes at 2× pool headroom. (4) Long-context traffic is
+  nearly immune under any allocator — the penalty is churn, not length.
+- **Cross-validated against Ramulator 2** on the same block tables:
+  Ramulator's row-hit fraction under its own FR-FCFS controller matches M1
+  within 0.003 on every sample (paged 0.797/0.799, PIM-aware 0.963/0.964,
+  contiguous 0.957/0.958). Stock Ramulator has no all-bank PIM command, so
+  this validates the row-locality half of the model, not M2.
+- Seeds: worst max−min spread of M1 across 24 cells × 3 seeds is 0.0079.
 
 ## Phase status
 
 - **Phase 0 (kill test): DONE** — stopped at the brief's gate, owner
   resumed. Baseline M1 was high on the brief's host-centric map (0.97) but
   that map destroys M2 (0.124 → 9.7% of ideal BW) for every allocator; the
-  allocator-recoverable gap lives on channel-interleaved maps
-  (docs/NOTES.md 2026-08-28).
-- **Phase 1: DONE** — all four workloads (spec = fork/CoW churn per vLLM
-  semantics; prefix = pinned shared system prompt), M1–M4, 64 tests green.
-- **Phase 2: DONE** — PimAware frame-aligned allocator, 48-run headline
-  sweep, figures/headline.png + bandwidth.png + sweep_heatmap.png.
-- Phase 3: Ramulator 2 cross-validation (binary builds) — the designated
-  cut if the deadline arrives first; not started.
+  allocator-recoverable gap lives on channel-interleaved maps.
+- **Phase 1: DONE** — four workloads (spec = fork/CoW churn per vLLM
+  semantics; prefix = pinned shared system prompt), M1–M4.
+- **Phase 2: DONE** — PimAware frame-aligned allocator (+ B2 spec fix),
+  headline/bandwidth/heatmap figures.
+- **Credibility sweeps (A–D, K): DONE** — seeds, reorder window, pool
+  headroom, KV-head sharding (proportional: invariant; head count: 6×→1.2×),
+  vLLM admission + preempt-by-recompute (`--admission vllm`).
+- **Phase 3 (Ramulator 2): DONE for row locality** — `python -m
+  pimkv.ramulator`; bindings build recipe in third_party/README.md (the
+  08-28 claim that it "already built" was wrong; corrected in NOTES).
 - Phase 4: demo assets — blog/ write-ups exist; video per brief §11.
+- Tests: `make test` (74 tests incl. the five validation gates).

@@ -536,3 +536,46 @@ for everything else.
 Preemption + spec + prefix all conserve blocks every step (tests), and
 vllm-mode runs are byte-deterministic. Contiguous is excluded from vllm
 mode by construction (it reserves whole spans).
+
+## 2026-09-11 — PHASE E: Ramulator 2 cross-validation (results/phaseE/)
+
+`python -m pimkv.ramulator`: real block tables captured from the simulator
+at step >= 400 (steady, bt16, host-cacheline, 3 sequences x 3 allocators),
+enumerated burst-for-burst exactly as pimmodel scores them, mapped through
+pimkv.addrmap, and fed to Ramulator 2 as PRE-DECODED address vectors
+(ReadWriteTrace + PassThroughAddrMapper/ChannelMapper) — so Ramulator sees
+our map bit-for-bit. HBM3_4Gb org (16 ch x 2 PC x 4 BG x 4 banks, 16384
+rows, 1 KB/PC row, BL8 32 B) = the hbm3-pim preset; HBM34 controller,
+FR-FCFS, open-row policy, refresh off; frontend clocked 64x the memory so
+the run is DRAM-throughput-bound (at 1:1 the trace frontend's one-request-
+per-tick cap leaves 16 channels idle and 'cycles' just counts issues —
+observed; Ramulator's clock_ratio is a frequency: larger = faster).
+
+| allocator | our M1 | Ramulator row-hit frac | our M3 (rel.) | Ramulator throughput (rel.) |
+|---|--:|--:|--:|--:|
+| paged      | 0.799 | 0.795 | 0.469 | 0.809 |
+| pim-aware  | 0.964 | 0.963 | 1.000 | 1.000 |
+| contiguous | 0.958 | 0.957 | 0.962 | 0.991 |
+
+1. **Row-hit accounting: validated to within 0.003 on every one of the
+   nine samples**, under a cycle-level controller with its OWN FR-FCFS
+   reordering. M1 is not a modeling artifact.
+2. **Direction: agrees** (paged worst; pim-aware ≈ contiguous best; sign of
+   every pairwise delta matches) — the brief's §5.5 stop condition is not
+   triggered.
+3. **Magnitude: Ramulator sees paged 1.24x slower; our all-bank model says
+   2.1x.** The difference is structural and expected: stock Ramulator has no
+   all-bank PIM command — its 16 banks per PC run independently under
+   FR-FCFS, so a row miss in one bank is hidden by activity in the others,
+   whereas a lockstep all-bank MAC stalls every bank on any bank's miss
+   (definition of M1). Ramulator therefore measures the conventional-DRAM
+   penalty, our model the all-bank penalty. Notably 1.24x is exactly the
+   floor our own zero-reordering mode gave in Phase A2 — the two extremes
+   of "how much can the controller hide" bracket the truth from both sides.
+   Reproducing the 2.1x in Ramulator would need the AttAcc-style all-bank
+   command extension (out of scope; the AttAcc simulator is vendored for
+   whoever does it).
+
+Net: Ramulator validates the row-locality half of the model exactly and the
+ordering fully; M2 and the all-bank amplification remain analytical, stated
+as such. Ramulator runs take ~1 s per 50k-request trace.

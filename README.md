@@ -22,6 +22,17 @@ make test             # 85 tests incl. the 5 validation gates
 make kill-test        # Phase 0: baseline + bracketing runs -> results/phase0/
 ```
 
+Everything above runs on the analytical model alone. The Phase 3
+cross-validation additionally needs two external DRAM simulators, which one
+script clones at their pinned commits and builds (no sudo, nothing outside
+`third_party/`, safe to re-run):
+
+```bash
+./scripts/setup_third_party.sh          # venv + Ramulator 2 + AttAcc PIM
+./scripts/setup_third_party.sh --check  # report what is present, build nothing
+make ramulator && make attacc           # then run the cross-validation
+```
+
 One run, one visible command (all results in the repo are reproducible this
 way; `--seed` makes output byte-identical):
 

@@ -1,12 +1,17 @@
 PY := .venv/bin/python
 
-.PHONY: venv install test kill-test sweep credibility ramulator attacc reproduce clean
+.PHONY: venv install setup test kill-test sweep credibility ramulator attacc reproduce clean
 
 venv:
 	uv venv --python python3.13 .venv
 
 install: venv
 	uv pip install -p .venv/bin/python -e . pytest
+
+# One command for a fresh machine: venv + both external DRAM simulators,
+# cloned at their pinned commits and built. Safe to re-run.
+setup:
+	./scripts/setup_third_party.sh
 
 test:
 	$(PY) -m pytest tests/

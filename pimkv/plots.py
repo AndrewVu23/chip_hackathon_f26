@@ -3,6 +3,8 @@
     python -m pimkv.plots headline  results/headline/summary.csv figures/headline.png
     python -m pimkv.plots bandwidth results/headline/summary.csv figures/bandwidth.png
     python -m pimkv.plots m1-hist   <run.csv> <out.png>
+    python -m pimkv.plots validation results/phaseE/summary.csv \
+                                     results/phaseE2/summary.csv figures/validation.png
 
 Every plot reads CSVs produced by pimkv.run/pimkv.sweep — nothing is
 fabricated. Style follows the dataviz reference palette: color identifies the
@@ -243,64 +245,86 @@ def kvheads(summary_csv: Path, out_path: Path) -> None:
     plt.close(fig)
 
 
-def validation(e2_csv: Path, e2hc_csv: Path, out_path: Path) -> None:
-    """Phase E2: our model vs AttAcc's all-bank PIM Ramulator.
-    Left: relative throughput per allocator on the realistic map (row-miss
-    effect). Right: cross-map ratio for the same sequences (bank-parallelism
-    effect): commands predicted vs cycles measured."""
-    a = pd.read_csv(e2_csv); b = pd.read_csv(e2hc_csv)
+def validation(ram_csv: Path, attacc_csv: Path, out_path: Path) -> None:
+    """Phase E/E2 cross-validation, stated as two plain questions.
+
+    Left  — does the model get PLACEMENT right? our M1 against stock
+            Ramulator 2's own measured row-hit fraction, same sampled decode
+            steps, one dot each; dots on the diagonal means agreement.
+    Right — does the SPEEDUP we claim survive a cycle-level PIM simulator?
+            speedup over the paged baseline on the same three sequences,
+            as our M3 predicts it and as AttAcc's PIM_MAC_AB cycles measure
+            it. The shortfall is ACT overlap, which our timing omits.
+    """
+    r = pd.read_csv(ram_csv)
+    a = pd.read_csv(attacc_csv)
     allocs = ["paged", "pim-aware", "contiguous"]
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 5), width_ratios=[3, 2])
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11.5, 5.2),
+                                   width_ratios=[3, 2.2])
     for ax in (ax1, ax2):
         _style_axis(ax)
-    g = a.groupby("allocator")[["m3_gbps", "attacc_cycles", "kv_bytes"]].mean()
-    g["cpk"] = g.attacc_cycles / (g.kv_bytes / 1024)
-    model_rel = g.m3_gbps / g.m3_gbps.max()
-    att_rel = g.cpk.min() / g.cpk
-    x = np.arange(len(allocs)); w = 0.36
-    b1 = ax1.bar(x - w / 2, [model_rel[al] for al in allocs], w * 0.94,
-                 color=[ALLOC_COLOR[al] for al in allocs], edgecolor=SURFACE,
-                 linewidth=2, zorder=3, label="analytical model (M3)")
-    b2 = ax1.bar(x + w / 2, [att_rel[al] for al in allocs], w * 0.94,
-                 color=[ALLOC_COLOR[al] for al in allocs], edgecolor=INK,
+
+    # -- left: agreement on row-hit rate -------------------------------
+    lo = min(r.m1.min(), r.ram_hit_frac.min()) - 0.03
+    hi = max(r.m1.max(), r.ram_hit_frac.max()) + 0.02
+    ax1.plot([lo, hi], [lo, hi], ls="--", lw=1.4, color=MUTED, zorder=2)
+    for al in ("paged", "contiguous", "pim-aware"):   # aligned pair on top
+        g = r[r.allocator == al]
+        ax1.scatter(g.m1, g.ram_hit_frac, s=120, color=ALLOC_COLOR[al],
+                    edgecolor=SURFACE, linewidth=1.8, zorder=4,
+                    label=ALLOC_LABEL[al])
+    d = (r.m1 - r.ram_hit_frac).abs()
+    ax1.set_xlim(lo, hi); ax1.set_ylim(lo, hi)
+    ax1.set_aspect("equal", adjustable="box")
+    ax1.set_xlabel("our analytical model — M1")
+    ax1.set_ylabel("stock Ramulator 2 — measured row-hit fraction")
+    # every number lives in the title; nothing is drawn inside the axes
+    ax1.set_title("Placement: the model agrees\n"
+                  f"{len(r)} samples · mean |\u0394| {d.mean():.4f} · "
+                  f"worst {d.max():.4f}", color=INK, fontsize=11.5, pad=10)
+    from matplotlib.lines import Line2D
+    handles, labels = ax1.get_legend_handles_labels()
+    handles.append(Line2D([], [], ls="--", lw=1.4, color=MUTED))
+    labels.append("perfect agreement")
+    ax1.legend(handles, labels, fontsize=10, framealpha=0.92, loc="lower right")
+
+    # -- right: claimed speedup vs measured speedup ---------------------
+    base = a[a.allocator == "paged"].set_index("seq_id")
+    tgt = [al for al in allocs if al != "paged"]
+    model = [float((a[a.allocator == al].set_index("seq_id").m3_gbps
+                    / base.m3_gbps).mean()) for al in tgt]
+    meas = [float((base.cycles_per_kb
+                   / a[a.allocator == al].set_index("seq_id").cycles_per_kb
+                   ).mean()) for al in tgt]
+    x = np.arange(len(tgt)); w = 0.34
+    b1 = ax2.bar(x - w / 2, model, w * 0.94,
+                 color=[ALLOC_COLOR[al] for al in tgt], edgecolor=SURFACE,
+                 linewidth=2, zorder=3, label="speedup we claim (our M3)")
+    b2 = ax2.bar(x + w / 2, meas, w * 0.94,
+                 color=[ALLOC_COLOR[al] for al in tgt], edgecolor=INK,
                  linewidth=1.2, hatch="//", alpha=0.55, zorder=3,
-                 label="AttAcc all-bank PIM simulator (cycles)")
+                 label="speedup AttAcc measures (PIM cycles)")
     for bars in (b1, b2):
         for bb in bars:
-            ax1.annotate(f"{bb.get_height():.2f}", (bb.get_x() + bb.get_width() / 2,
-                         bb.get_height()), ha="center", va="bottom", fontsize=10,
-                         color=INK, xytext=(0, 2), textcoords="offset points")
-    ax1.set_xticks(x, [ALLOC_LABEL[al] for al in allocs])
-    ax1.set_ylim(0, 1.15)
-    ax1.set_ylabel("throughput relative to best (higher is better)")
-    ax1.set_title("Same sequences, realistic host map", color=INK, fontsize=13)
-    ax1.legend(fontsize=10, framealpha=0.95, loc="upper left")
-
-    gc = b.groupby("allocator")[["n_cmds", "attacc_cycles"]].mean()
-    ga = a.groupby("allocator")[["n_cmds", "attacc_cycles"]].mean()
-    xs = np.arange(len(allocs)); w2 = 0.36
-    pred = [float(gc.n_cmds[al] / ga.n_cmds[al]) for al in allocs]
-    meas = [float(gc.attacc_cycles[al] / ga.attacc_cycles[al]) for al in allocs]
-    p1 = ax2.bar(xs - w2 / 2, pred, w2 * 0.94,
-                 color=[ALLOC_COLOR[al] for al in allocs], edgecolor=SURFACE,
-                 linewidth=2, zorder=3, label="commands predicted (model)")
-    p2 = ax2.bar(xs + w2 / 2, meas, w2 * 0.94,
-                 color=[ALLOC_COLOR[al] for al in allocs], edgecolor=INK,
-                 linewidth=1.2, hatch="//", alpha=0.55, zorder=3,
-                 label="cycles measured (AttAcc)")
-    for bars in (p1, p2):
-        for bb in bars:
-            ax2.annotate(f"{bb.get_height():.1f}×",
+            ax2.annotate(f"{bb.get_height():.2f}×",
                          (bb.get_x() + bb.get_width() / 2, bb.get_height()),
-                         ha="center", va="bottom", fontsize=10, color=INK,
+                         ha="center", va="bottom", fontsize=11, color=INK,
                          xytext=(0, 2), textcoords="offset points")
-    ax2.set_xticks(xs, [ALLOC_LABEL[al].split(" (")[0] for al in allocs])
-    ax2.set_ylim(0, max(pred + meas) * 1.22)
-    ax2.set_ylabel("host-centric ÷ host-cacheline (same sequences)")
-    ax2.set_title("Bank parallelism collapse (M2)", color=INK, fontsize=13)
-    ax2.legend(fontsize=9.5, framealpha=0.9, loc="upper left")
-    fig.suptitle("Cross-validation against a cycle-level all-bank PIM simulator",
-                 color=INK, fontsize=14, y=1.0)
+    ax2.axhline(1.0, color=MUTED, lw=1.4, ls="--", zorder=2)
+    ax2.annotate("paged baseline", (len(tgt) - 0.52, 1.0), va="bottom",
+                 ha="right", fontsize=10.5, color=MUTED)
+    over = np.mean([m / v for m, v in zip(model, meas)])
+    ax2.set_xticks(x, [ALLOC_LABEL[al] for al in tgt])
+    ax2.set_xlabel(f"we are {over:.1f}× optimistic: our timing charges a full\n"
+                   "row cycle per miss, AttAcc overlaps activation",
+                   fontsize=10.5, color=MUTED)
+    ax2.set_ylim(0, max(model) * 1.45)
+    ax2.set_ylabel("speedup over paged (same three sequences)")
+    ax2.set_title("Speedup: claimed vs measured", color=INK, fontsize=13, pad=8)
+    ax2.legend(fontsize=9.5, framealpha=0.92, loc="upper right")
+
+    fig.suptitle("Cross-validation: placement confirmed, timing overstated by "
+                 f"{over:.1f}×", color=INK, fontsize=14.5, y=1.0)
     fig.tight_layout()
     out_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_path, dpi=160, bbox_inches="tight")

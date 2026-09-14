@@ -3,9 +3,10 @@
 # against. Everything lands under third_party/ and nothing is installed
 # system-wide; no sudo is needed anywhere.
 #
-#   ./scripts/setup_third_party.sh              # venv + both simulators
+#   ./scripts/setup_third_party.sh              # venv + both simulators + NeuPIMs source
 #   ./scripts/setup_third_party.sh ramulator    # stock Ramulator 2 only (M1)
 #   ./scripts/setup_third_party.sh attacc       # AttAcc all-bank PIM only (M2)
+#   ./scripts/setup_third_party.sh neupims      # NeuPIMs source only (read, not built)
 #   ./scripts/setup_third_party.sh --check      # report what is present, build nothing
 #
 # Safe to re-run: each step is skipped when its output already exists.
@@ -21,6 +22,11 @@ ATTACC_SHA="c60005143a6b492d7ef83231723386478b59a506"
 # AttAcc's PIM extension targets a Ramulator commit that is not reachable
 # from any branch (upstream restructured the tree), so it is fetched by SHA.
 ATTACC_RAM_SHA="b7c70275f04126c647edb989270cc429776955d1"
+# NeuPIMs (ASPLOS '24) is cloned to read its KV allocator and scheduler, not
+# built: it needs gcc 8.3 + conan 1.57 (their Docker image), and running it
+# unmodified adds nothing — its allocator is row-aligned by construction.
+NEUPIMS_URL="https://github.com/casys-kaist/NeuPIMs.git"
+NEUPIMS_SHA="f299af3fc8f20077e816f2e48313294cddb4bd7c"
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TP="$ROOT/third_party"
@@ -151,6 +157,14 @@ setup_attacc() {
   ok "attacc PIM ramulator built — try: $VENV_PY -m pimkv.attacc --help"
 }
 
+# ---------------------------------------------- NeuPIMs source (reference)
+# Submodules (booksim, FlameGraph) are only needed to build, so they are not
+# fetched; the in-house DRAM simulator (extern/NewtonSim) is in the main repo.
+setup_neupims() {
+  require git
+  pin_clone "$NEUPIMS_URL" "$NEUPIMS_SHA" "$TP/neupims"
+}
+
 # --------------------------------------------------------------------- report
 report() {
   printf '\n%sstatus%s\n' "$bold" "$off"
@@ -162,6 +176,9 @@ report() {
   if [ -x "$TP/attacc_simulator/ramulator2/build/ramulator2" ]
     then printf '  attacc PIM (M2)      built\n'
     else printf '  attacc PIM (M2)      not built\n'; fi
+  if [ -d "$TP/neupims/.git" ]
+    then printf '  neupims (source)     cloned at %s\n' "$(git -C "$TP/neupims" rev-parse --short=8 HEAD)"
+    else printf '  neupims (source)     not cloned\n'; fi
   printf '  vllm_ref             committed in-tree (no fetch needed)\n\n'
 }
 
@@ -173,17 +190,18 @@ for arg in "$@"; do
     --check)  report; exit 0 ;;
     -h|--help) awk 'NR>1 && /^#/ {sub(/^# ?/, ""); print; next} NR>1 {exit}' \
                  "${BASH_SOURCE[0]}"; exit 0 ;;
-    ramulator|attacc|venv) TARGETS+=("$arg") ;;
+    ramulator|attacc|neupims|venv) TARGETS+=("$arg") ;;
     *) die "unknown argument '$arg' (try --help)" ;;
   esac
 done
-[ ${#TARGETS[@]} -eq 0 ] && TARGETS=(venv ramulator attacc)
+[ ${#TARGETS[@]} -eq 0 ] && TARGETS=(venv ramulator attacc neupims)
 
 for t in "${TARGETS[@]}"; do
   case "$t" in
     venv)      setup_venv ;;
     ramulator) setup_venv; setup_ramulator ;;
     attacc)    setup_venv; setup_attacc ;;
+    neupims)   setup_neupims ;;
   esac
 done
 report

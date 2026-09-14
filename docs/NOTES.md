@@ -681,3 +681,78 @@ caveat that the row-miss penalty is modeled without ACT overlap, making
 them optimistic by ~1.4x; the 2.3x steady headline becomes ~1.6x on
 AttAcc's timing. Direction, ordering and the block-size/address-map
 conclusions are unaffected.
+
+## 2026-09-14 — NeuPIMs code review (third_party/neupims @ f299af3)
+
+The workshop deck critiqued NeuPIMs (ASPLOS '24) from the paper alone:
+"adopts vLLM's LIFO paging yet assumes a fixed row-aligned layout" and
+"Algorithm 1 assumes a row hit every time." Checked against the code
+before presenting. Both claims were wrong in the form stated; the code
+supports a different, stronger point.
+
+**Allocator.** `src/allocator/KVCacheAllocator.cc:87-102` is a per-channel
+FIFO deque (`pop_front`/`push_back`) of whole DRAM row indices — the same
+row in every bank of the channel. Keys get new rows every 32 tokens,
+values every 512 (`src/tensor/PIMTensor.cc:20-33`). The page IS a row
+group, so there is no paging-vs-layout contradiction: alignment holds by
+construction. In our terms NeuPIMs pulled the grow-the-block lever. The
+`npu+pim` baseline branch uses the same allocator (the diff is whitespace).
+
+**The shipped simulator never exercises allocation churn.**
+- `src/client/Client.cc:62` hardcodes `output_size = 1`, so every request
+  runs a single iteration at the context length from the trace.
+- `PIMTensor::add_token()`'s only call sites are commented out
+  (`src/operations/SplitDecoding.cc:36-37`), so KV never grows.
+- `KVCacheAlloc::free` has no callers. At completion
+  (`src/scheduler/Scheduler.cc:581`, commented "free KV cache") the
+  request is only erased from the queue.
+- Channels are pre-assigned offline (the `ch_idx` column of
+  `request-traces/`, produced by `trace-generator/channel_load_balancing.py`).
+So "employs vLLM's paging" is true of granularity, but the free-list
+recycling that scatters vLLM's placement never happens in their runs —
+precisely the phenomenon this project measures. That is a reasonable
+simplification for a batched-attention throughput study, not an error.
+
+**Algorithm 1.** It is `Scheduler::estimate_mha_latency`
+(`Scheduler.cc:267-285`) with hardcoded `_gwrite_latency = 100`,
+`_gemv_latency = 184` (`:83-84`, duplicated in
+`trace-generator/channel_load_balancing.py:7-8`). It only drives channel
+load balancing (`:114-119`, `:214-217`) and the sub-batch partition DP
+(`:329`). Reported latency comes from NewtonSim cycle counts
+(`src/Simulator.cc:74-75` -> `GetAvgPIMCycles`), and NewtonSim does model
+open rows and ACTIVATE (`extern/NewtonSim/src/bankstate.cc:293-367`,
+`neupims_command_queue.cc:134-144`). Given a row-granular allocator, a
+layout-independent per-tile estimate is reasonable; it would only break
+under a finer-grained allocator.
+
+**Granularity cost, analytic, on NeuPIMs' own traces** (10 ShareGPT clb
+files, 5,120 requests, median 221 tokens; GPT3-7B TP4 fp16 = 2048 B per
+token per tensor, which both NeuPIMs page types fit exactly). Reserved but
+unused KV, K + V:
+
+| granularity | mean slack | of used KV |
+|---|--:|--:|
+| vLLM 16-token blocks | 14.9 tok/req | 2.4% |
+| NeuPIMs (K 32 / V 512) | 325.6 tok/req | 52.9% |
+| 128-token blocks | 128.5 tok/req | 20.9% |
+
+This is per-request slack, a different metric from the 7% peak-capacity
+cost of 128-token blocks on our steady workload (which averages over
+concurrency and longer sequences). It is a statement about the design,
+not a simulator result, since their runs never grow or free.
+
+**Not run.** An unmodified NeuPIMs run shows aligned rows by construction
+and tests nothing here. The informative experiment (a 16-token paged
+allocator inside their cycle simulator) means rewriting PIMTensor and
+NeuPIMSAttend instruction generation, and the build needs gcc 8.3 +
+conan 1.57 via Docker on this arm64 host.
+
+**Seen but not used:** PIMTensor sizes rows with un-sharded
+`model_n_embd` while the TP-aware accounting lives in
+`allocate_pim_tile`, which is dead code (its only call is commented out
+at `Scheduler.cc:192`). Likely a latent over-reservation that
+never bites because rows are plentiful; unverified by running, so not
+reported. All four shipped model configs set `model_n_layer: 1` — the
+same one-representative-layer simplification this project makes.
+The paper's "4 banks at a time" power limit was not found in code; the
+only `>= 4` is DRAMsim3's row-hit starvation counter, unrelated.

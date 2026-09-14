@@ -1,8 +1,8 @@
 # third_party
 
-External code this project depends on or ports from. The two simulator
-clones are **not** committed (see `.gitignore`); re-fetch them with the
-commands below. The vLLM reference files **are** committed (Apache-2.0,
+External code this project depends on or ports from. The simulator clones
+(Ramulator 2, AttAcc, NeuPIMs) are **not** committed (see `.gitignore`);
+re-fetch them with `./scripts/setup_third_party.sh` or the commands below. The vLLM reference files **are** committed (Apache-2.0,
 attribution below) because the allocator port cites them line-by-line.
 
 ## vllm_ref/ (committed)
@@ -48,7 +48,7 @@ git clone https://github.com/scale-snu/attacc_simulator.git third_party/attacc_s
 git -C third_party/attacc_simulator checkout c60005143a6b492d7ef83231723386478b59a506
 ```
 
-Reference only (AttAcc PIM-attention simulator, HPCA'24): consulted for
+Reference only (AttAcc PIM-attention simulator, ASPLOS'24): consulted for
 PIM command semantics and timing sanity; no code is imported from it.
 
 ## attacc_simulator/ramulator2 — the all-bank PIM build (Phase E2)
@@ -76,3 +76,22 @@ env -u CXXFLAGS -u CFLAGS -u LDFLAGS make -j6     # -> build/ramulator2
 Geometry note: org preset `HBM3_8Gb_2R` with `channel: 16` is exactly our
 `hbm3-pim` preset — 16 ch x 2 pseudo-channels = 32 all-bank domains, 4 bank
 groups x 4 banks, 16384 rows, 32 columns x 32 B = 1 KB rows.
+
+## neupims/ (clone, not committed, not built)
+
+```bash
+git clone https://github.com/casys-kaist/NeuPIMs.git third_party/neupims
+git -C third_party/neupims checkout f299af3fc8f20077e816f2e48313294cddb4bd7c
+```
+
+NeuPIMs (ASPLOS '24) simulator source, fetched by
+`./scripts/setup_third_party.sh neupims` so its KV-cache allocator and
+scheduler can be read. The repository carries **no license**, so it is
+cloned locally and never vendored into this repo. Submodules (booksim,
+FlameGraph) are only needed to build and are not fetched; the DRAM
+simulator (`extern/NewtonSim`) is part of the main repository.
+
+It is deliberately not built: the toolchain is gcc 8.3 + conan 1.57 (their
+Docker image), and an unmodified run adds nothing to this study because
+its allocator hands out whole row groups, aligned by construction. What
+the code review found is in docs/NOTES.md (2026-09-14).

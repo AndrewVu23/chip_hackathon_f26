@@ -35,7 +35,7 @@ ALLOC_COLOR = {          # fixed categorical slot order — never re-assigned
     "contiguous": "#1baf7a",
 }
 ALLOC_LABEL = {"paged": "paged (vLLM port)", "pim-aware": "PIM-aware",
-               "contiguous": "contiguous (oracle)"}
+               "contiguous": "contiguous (knows lengths)"}
 WL_STYLE = {"steady": "-", "spec": "--"}
 
 plt.rcParams.update({
@@ -91,8 +91,8 @@ def headline(summary_csv: Path, out_path: Path) -> None:
                        label=f"{wl} workload") for wl in ("steady", "spec")]
     ax1.legend(handles=handles, loc="center right", fontsize=11,
                framealpha=0.9)
-    ax1.set_ylabel("M1 — all-bank row-hit rate")
-    ax2.set_ylabel("M3 — effective PIM bandwidth (GB/s)")
+    ax1.set_ylabel("all-bank row-hit rate")
+    ax2.set_ylabel("effective PIM bandwidth (GB/s)")
     ax2.set_xlabel("KV block size (tokens)")
     ax2.set_ylim(bottom=0)
     ax1.set_title("Paged for capacity, punished by rows — "
@@ -131,7 +131,7 @@ def bandwidth(summary_csv: Path, out_path: Path, ideal_gbps: float) -> None:
                 (len(wls) - 0.55, ideal_gbps), va="bottom", ha="right",
                 fontsize=11, color=MUTED)
     ax.set_xticks(x, wls)
-    ax.set_ylabel("M3 — effective PIM bandwidth (GB/s)")
+    ax.set_ylabel("effective PIM bandwidth (GB/s)")
     ax.set_ylim(0, ideal_gbps * 1.08)
     ax.set_title("Effective PIM bandwidth by workload\n"
                  "16-token blocks, HBM3-PIM, realistic host map",
@@ -177,10 +177,10 @@ def heatmap(summary_csv: Path, out_path: Path) -> None:
     ax.set_yticks(range(len(pls)), [f"{int(p):,}" for p in pls])
     ax.set_xlabel("KV block size (tokens)")
     ax.set_ylabel("context length (prompt tokens)")
-    ax.set_title("M1 row-hit rate — paged allocator, HBM3-PIM, "
+    ax.set_title("All-bank row-hit rate — paged allocator, HBM3-PIM, "
                  "realistic host map", color=INK, fontsize=14, pad=12)
     cb = fig.colorbar(im, ax=ax, shrink=0.85)
-    cb.set_label("M1 — all-bank row-hit rate")
+    cb.set_label("all-bank row-hit rate")
     fig.tight_layout()
     out_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_path, dpi=160)
@@ -193,7 +193,7 @@ def m1_hist(csv_path: Path, out_path: Path) -> None:
     fig, ax = plt.subplots(figsize=(7, 4.5))
     _style_axis(ax)
     ax.hist(df.m1, bins=50, color="#2a78d6", edgecolor=SURFACE, zorder=3)
-    ax.set_xlabel("M1 — all-bank row-hit rate", fontsize=14)
+    ax.set_xlabel("all-bank row-hit rate", fontsize=14)
     ax.set_ylabel("sampled decode steps", fontsize=14)
     ax.set_xlim(0, 1)
     ax.axvline(df.m1.mean(), color="#eb6834", lw=2,
@@ -232,7 +232,7 @@ def kvheads(summary_csv: Path, out_path: Path) -> None:
              / df[(df.model == m) & (df.allocator == "paged")].m3_gbps_mean.mean())
         labels.append(f"{lbl}\nPIM-aware gains {r:.1f}×")
     ax.set_xticks(x, labels)
-    ax.set_ylabel("M1 — all-bank row-hit rate")
+    ax.set_ylabel("all-bank row-hit rate")
     ax.set_ylim(0, 1.06)
     ax.set_yticks([0, 0.2, 0.4, 0.6, 0.8, 1.0])
     ax.set_title("The penalty grows as models shed KV heads — 16-token blocks",
@@ -276,7 +276,7 @@ def validation(ram_csv: Path, attacc_csv: Path, out_path: Path) -> None:
     d = (r.m1 - r.ram_hit_frac).abs()
     ax1.set_xlim(lo, hi); ax1.set_ylim(lo, hi)
     ax1.set_aspect("equal", adjustable="box")
-    ax1.set_xlabel("our analytical model — M1")
+    ax1.set_xlabel("our analytical model — row-hit rate")
     ax1.set_ylabel("stock Ramulator 2 — measured row-hit fraction")
     # every number lives in the title; nothing is drawn inside the axes
     ax1.set_title("Placement: the model agrees\n"
@@ -286,7 +286,7 @@ def validation(ram_csv: Path, attacc_csv: Path, out_path: Path) -> None:
     handles, labels = ax1.get_legend_handles_labels()
     handles.append(Line2D([], [], ls="--", lw=1.4, color=MUTED))
     labels.append("perfect agreement")
-    ax1.legend(handles, labels, fontsize=10, framealpha=0.92, loc="lower right")
+    ax1.legend(handles, labels, fontsize=10, framealpha=0.92, loc="upper left")
 
     # -- right: claimed speedup vs measured speedup ---------------------
     base = a[a.allocator == "paged"].set_index("seq_id")
@@ -299,7 +299,7 @@ def validation(ram_csv: Path, attacc_csv: Path, out_path: Path) -> None:
     x = np.arange(len(tgt)); w = 0.34
     b1 = ax2.bar(x - w / 2, model, w * 0.94,
                  color=[ALLOC_COLOR[al] for al in tgt], edgecolor=SURFACE,
-                 linewidth=2, zorder=3, label="speedup we claim (our M3)")
+                 linewidth=2, zorder=3, label="speedup we claim (our model)")
     b2 = ax2.bar(x + w / 2, meas, w * 0.94,
                  color=[ALLOC_COLOR[al] for al in tgt], edgecolor=INK,
                  linewidth=1.2, hatch="//", alpha=0.55, zorder=3,
@@ -363,7 +363,7 @@ def pressure(d_csv: Path, specfix_csv: Path, out_path: Path) -> None:
     ax.annotate("pool = mean demand", (1.0, 0.71), fontsize=10, color=MUTED,
                 xytext=(6, 0), textcoords="offset points")
     ax.set_xlabel("KV pool size ÷ mean demand (headroom)")
-    ax.set_ylabel("M1 — all-bank row-hit rate")
+    ax.set_ylabel("all-bank row-hit rate")
     ax.set_ylim(0.7, 1.0)
     ax.set_xlim(0.55, 1.38)
     ax.set_title("Under real preemption, the benefit shrinks when the pool is "

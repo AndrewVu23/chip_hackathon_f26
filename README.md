@@ -115,7 +115,6 @@ results/        run outputs: <name>.csv + <name>.csv.meta.json (gitignored)
 third_party/    vllm_ref (committed, cited) + ramulator2/attacc clones
                 (pinned, re-fetch per third_party/README.md)
 docs/           AGENT_BRIEF.md (spec), proposal.md, NOTES.md (decision log)
-blog/           write-ups (primer, kill-test post)
 ```
 
 ## Key derived quantity
@@ -226,5 +225,5 @@ bandwidth 3810 GB/s; `make sweep && make reproduce` regenerates everything.
   (AttAcc all-bank PIM extension: M2). Build recipes in
   third_party/README.md (the 08-28 claim that Ramulator "already built"
   was wrong; corrected in NOTES).
-- Phase 4: demo assets — blog/ write-ups exist; video per brief §11.
+- Phase 4: demo assets — figures/ and the talk deck.
 - Tests: `make test` (85 tests incl. the five validation gates).

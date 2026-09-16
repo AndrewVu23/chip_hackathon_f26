@@ -1,0 +1,5 @@
+workload,allocator,steps,us_per_step
+longctx,paged,1964,62.11153769857434
+longctx,pim-aware,1964,243.95118942973525
+prefix,paged,2082,9.420715864553316
+prefix,pim-aware,2082,19.44061259846302

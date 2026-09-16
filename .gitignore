@@ -19,3 +19,4 @@ results/**/*.csv
 !results/**/summary.csv
 results/**/*.trace
 results/**/*.yaml
+docs/PRESENTATION_SCRIPT.md

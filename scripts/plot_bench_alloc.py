@@ -24,7 +24,7 @@ import pandas as pd
 
 INK, MUTED, GRID, SURFACE = "#0b0b0b", "#898781", "#e1e0d9", "#fcfcfb"
 COLOR = {"paged": "#2a78d6", "pim-aware": "#eb6834", "contiguous": "#1baf7a"}
-LABEL = {"paged": "paged (vLLM port)", "pim-aware": "PIM-aware",
+LABEL = {"paged": "paged (vLLM port)", "pim-aware": "KV-PIMple",
          "contiguous": "contiguous (knows lengths)"}
 LAYERS = 32                     # Llama-3-8B-class model
 # mean concurrent sequences = total generated tokens / decode steps, per
@@ -190,7 +190,7 @@ def main(argv) -> int:
     panel_worst(fig.add_subplot(gs[0, 1]), w)
     panel_budget(fig.add_subplot(gs[1, 0]), trade, s)
     panel_ratio(fig.add_subplot(gs[1, 1]), trade)
-    fig.suptitle("Cost of PIM-aware allocation — measured, CPython, "
+    fig.suptitle("Cost of KV-PIMple allocation — measured, CPython, "
                  f"harness overhead ({oh:.0f} ns/call) subtracted",
                  fontsize=14, color=INK, x=0.06, ha="left", y=0.965)
     fig.text(0.115, 0.014, "attention time = measured decode latency × 32 layers "

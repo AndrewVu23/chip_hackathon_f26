@@ -20,7 +20,7 @@ import pandas as pd
 
 INK, MUTED, GRID, SURFACE = "#0b0b0b", "#898781", "#e1e0d9", "#fcfcfb"
 COLOR = {"paged": "#2a78d6", "pim-aware": "#eb6834"}
-LABEL = {"paged": "paged (vLLM port)", "pim-aware": "PIM-aware"}
+LABEL = {"paged": "paged (vLLM port)", "pim-aware": "KV-PIMple"}
 
 plt.rcParams.update({
     "font.family": "sans-serif", "font.size": 11.5,

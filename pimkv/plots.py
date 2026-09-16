@@ -34,7 +34,7 @@ ALLOC_COLOR = {          # fixed categorical slot order — never re-assigned
     "pim-aware": "#eb6834",
     "contiguous": "#1baf7a",
 }
-ALLOC_LABEL = {"paged": "paged (vLLM port)", "pim-aware": "PIM-aware",
+ALLOC_LABEL = {"paged": "paged (vLLM port)", "pim-aware": "KV-PIMple",
                "contiguous": "contiguous (knows lengths)"}
 WL_STYLE = {"steady": "-", "spec": "--"}
 
@@ -95,7 +95,7 @@ def headline(summary_csv: Path, out_path: Path) -> None:
     ax2.set_ylabel("effective PIM bandwidth (GB/s)")
     ax2.set_xlabel("KV block size (tokens)")
     ax2.set_ylim(bottom=0)
-    ax1.set_title("Paged for capacity, punished by rows — "
+    ax1.set_title("KV-PIMple — "
                   "HBM3-PIM, realistic host address map",
                   color=INK, fontsize=15, pad=12)
     fig.tight_layout()
@@ -230,7 +230,7 @@ def kvheads(summary_csv: Path, out_path: Path) -> None:
     for i, (m, lbl) in enumerate(order):
         r = (df[(df.model == m) & (df.allocator == "pim-aware")].m3_gbps_mean.mean()
              / df[(df.model == m) & (df.allocator == "paged")].m3_gbps_mean.mean())
-        labels.append(f"{lbl}\nPIM-aware gains {r:.1f}×")
+        labels.append(f"{lbl}\nKV-PIMple gains {r:.1f}×")
     ax.set_xticks(x, labels)
     ax.set_ylabel("all-bank row-hit rate")
     ax.set_ylim(0, 1.06)

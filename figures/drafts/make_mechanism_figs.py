@@ -156,7 +156,7 @@ def fig_address_map() -> None:
 # ---------------------------------------------------------------------------
 def fig_trace() -> None:
     lanes = [("paged (vLLM)", PAGED, [1403, 977, 2210, 58]),
-             ("PIM-aware", PIM, [48, 49, 50, 51])]
+             ("KV-PIMple", PIM, [48, 49, 50, 51])]
     fig, ax = plt.subplots(figsize=(14, 5.6))
     ax.set_xlim(-0.2, 22.0)
     ax.set_ylim(-1.55, 3.55)
@@ -247,7 +247,7 @@ def fig_trace() -> None:
 # ---------------------------------------------------------------------------
 def fig_subrow() -> None:
     lanes = [("paged (vLLM)", PAGED, [1403, 977, 2210, 58]),
-             ("PIM-aware", PIM, [48, 49, 50, 51])]
+             ("KV-PIMple", PIM, [48, 49, 50, 51])]
     fig, axes = plt.subplots(1, 2, figsize=(11, 5.6),
                              gridspec_kw=dict(width_ratios=[8, 4], wspace=0.12))
     for ax, (name, color, table) in zip(axes, lanes):
@@ -288,7 +288,7 @@ def fig_subrow() -> None:
     axes[0].text(-0.35, 0.5, "bank 15", ha="right", va="center", fontsize=9.5,
                  color=MUTED)
     fig.suptitle("4-token blocks cover only half the banks: paged idles 8 of 16 "
-                 "per command,\nPIM-aware pairs neighbouring offsets "
+                 "per command,\nKV-PIMple pairs neighbouring offsets "
                  "(banks 0–7 + 8–15) into full commands",
                  fontsize=13.5, color=INK, y=1.02)
     fig.savefig(OUT / "mech_subrow_blocks.png", dpi=200, bbox_inches="tight")

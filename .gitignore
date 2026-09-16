@@ -4,6 +4,7 @@ __pycache__/
 *.egg-info/
 .pytest_cache/
 .DS_Store
+handoff.md
 
 # External simulators: cloned + built per third_party/README.md
 third_party/ramulator2/

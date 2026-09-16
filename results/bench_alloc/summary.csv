@@ -1,0 +1,11 @@
+harness_overhead_ns,part,allocator,workload,admission,headroom,pool_blocks,decode_steps,blocks_allocated,preemptions,calls,alloc_ms_total,ns_per_call,us_per_decode_step,ns_per_block_alloc,struct_kib,sim_wall_s,breakdown,regions,ns_per_admit
+92,in-situ,paged,steady,oracle,1.3,3161,5959,37546,0,458647,115.778,252.434,19.4291,3083.63,112.707,0.263227,get_table:413920x/91.8ms; append_block:16488x/12.1ms; release:1000x/6.5ms; admit:1000x/3.7ms; num_live:6053x/1.1ms,,
+92,in-situ,pim-aware,steady,oracle,1.3,3168,5955,37546,0,457172,160.958,352.072,27.029,4286.95,69.5586,0.316735,get_table:412477x/94.9ms; admit:1000x/32.6ms; append_block:16488x/18.5ms; release:1000x/13.2ms; num_live:6049x/1.2ms,,
+92,in-situ,contiguous,steady,oracle,1.3,3161,6485,37546,0,515675,137.035,265.739,21.1311,3649.79,9.36719,0.319368,get_table:486155x/110.8ms; num_free:4445x/8.4ms; release:1000x/7.7ms; append_block:16488x/7.0ms; admit:1000x/1.9ms,,
+92,in-situ,paged,spec,oracle,1.3,3161,4643,509926,0,1474779,669.817,454.181,144.264,1313.56,111.191,1.03658,alloc_scratch:411884x/322.2ms; spec_round_adopt:102971x/311.9ms; num_free:516928x/18.7ms; release:1000x/6.5ms; get_table:24396x/5.7ms,,
+92,in-situ,pim-aware,spec,oracle,1.3,3168,4643,526414,0,1404784,831.544,591.937,179.096,1579.64,629.496,1.30594,alloc_scratch:411884x/467.7ms; unref_blocks:411884x/273.0ms; admit:1000x/31.6ms; append_block:16488x/20.1ms; num_free:533416x/18.6ms,,
+92,in-situ,contiguous,spec,oracle,1.3,3161,4643,45546,0,50673,27.2678,538.112,5.87287,598.686,4.63281,0.199224,append_block:16488x/7.9ms; release:1000x/6.9ms; get_table:24396x/5.9ms; admit:1000x/2.0ms; unref_blocks:1000x/1.5ms,,
+92,in-situ,paged,steady,vllm,0.6,1459,7919,43905,353,333930,91.2972,273.402,11.5289,2079.43,51.6992,0.208716,get_table:264082x/60.2ms; append_block:16488x/12.5ms; release:1353x/8.1ms; admit:1353x/4.9ms; num_free:42611x/4.1ms,,
+92,in-situ,pim-aware,steady,vllm,0.6,1464,7904,44142,341,333838,194.486,582.575,24.606,4405.91,32.332,0.318654,append_block:16488x/87.0ms; get_table:264082x/61.1ms; admit:1341x/26.6ms; release:1341x/14.0ms; num_free:42558x/4.2ms,,
+92,worst-case,paged,,,,3168,,,,2000,0.271667,,,135.833,,,,3168,214.795
+92,worst-case,pim-aware,,,,3168,,,,2000,2.98612,,,1493.06,,,,396,15582.5

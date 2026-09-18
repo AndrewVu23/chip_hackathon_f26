@@ -1,6 +1,6 @@
-"""Tests for pimkv.pimmodel — written BEFORE the implementation.
+"""Tests for pimkv.pimmodel.
 
-Includes validation gates 1 and 2 from AGENT_BRIEF §6 at the model level
+Includes validation gates 1 and 2 at the model level
 (gates 3-5 need the simulator and live in test_sim.py):
 
   Gate 1 (perfect-case anchor): contiguous placement + PIM-friendly map
@@ -134,7 +134,7 @@ def test_gate2_worst_case_anchor():
 
 
 def test_host_centric_kills_bank_parallelism():
-    """Brief §5.3 host-centric map (ro:bg:ba:ch:co): a contiguous stream walks
+    """The host-centric map (ro:bg:ba:ch:co): a contiguous stream walks
     an entire row of one bank before touching the next bank, so within a
     64-burst window only 2 banks are reachable -> M2 = 2/16 = 0.125 on
     hbm3-pim, even though rows stay open (M1 high)."""

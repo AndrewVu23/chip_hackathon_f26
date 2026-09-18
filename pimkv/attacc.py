@@ -5,7 +5,7 @@
 
 Why this exists
 ---------------
-Phase E used *stock* Ramulator 2, which has no all-bank PIM command: its 16
+Stock Ramulator 2 (``pimkv.ramulator``) has no all-bank PIM command: its 16
 banks run independently under FR-FCFS, so it can validate the row-locality
 half of the model (M1) but not M2, the lockstep bank-parallelism term.
 

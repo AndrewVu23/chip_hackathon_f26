@@ -1,4 +1,4 @@
-"""Tests for pimkv.addrmap — written BEFORE the implementation (per AGENT_BRIEF §10).
+"""Tests for pimkv.addrmap.
 
 Uses a deliberately tiny geometry so every expected value below is
 hand-computed from the bit layout:
@@ -9,7 +9,7 @@ hand-computed from the bit layout:
 
 Bit layouts (LSB -> MSB), in burst units:
   pim-friendly   : ba(1) bg(1) co(3) ro(4) ch(1)
-  host-centric   : co(3) ch(1) ba(1) bg(1) ro(4)      [brief §5.3: ro:bg:ba:ch:co]
+  host-centric   : co(3) ch(1) ba(1) bg(1) ro(4)      [ro:bg:ba:ch:co]
   host-cacheline : co(1) ch(1) ba(1) bg(1) co(2) ro(4) [cacheline-interleaved]
 """
 import numpy as np

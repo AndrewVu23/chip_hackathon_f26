@@ -18,8 +18,8 @@ One iteration of the serving engine's decode loop == one step. Per step:
   4. Finished sequences release their blocks.
 
 Speculation model (--workload spec): per round, the sequence forks W draft
-branches of depth D (brief §5.1: draft tree W=4 D=3; we model W independent
-depth-D paths — a mid-density tree). Each branch owns a private tail: a
+branches of depth D (draft tree W=4, D=3, modelled as W independent
+depth-D paths: a mid-density tree). Each branch owns a private tail: a
 copy-on-write duplicate of the partial last block (vLLM append_slot
 semantics) plus overflow blocks. Draft i (1-indexed) is accepted with
 probability accept^i, sequentially until the first rejection, plus one
@@ -160,7 +160,7 @@ def simulate(requests: list[Request], alloc: KVAllocator, geom: DramGeometry,
              spec: SpecParams | None = None, admission: str = "oracle",
              watermark: float = 0.01, on_sample=None) -> SimResult:
     """``admission``: "oracle" (Phases 0-2: reserve the final footprint, no
-    preemption) or "vllm" (Phase D: vLLM v0.2.7 scheduler semantics —
+    preemption) or "vllm" (vLLM v0.2.7 scheduler semantics —
     admit on prompt blocks + a 1% watermark, and when a running sequence
     cannot get a block, preempt the most recently admitted other sequence
     by RECOMPUTE: free all its blocks, keep its generated tokens as prompt,
@@ -423,7 +423,7 @@ def simulate(requests: list[Request], alloc: KVAllocator, geom: DramGeometry,
                 row.update(step=t, live_blocks=alloc.num_live,
                            free_blocks=alloc.num_free)
                 rows.append(row)
-                if on_sample is not None:   # Phase E trace capture hook
+                if on_sample is not None:   # trace capture hook
                     on_sample(t, s, list(alloc.get_table(s.rid)))
 
         for rid in finished:

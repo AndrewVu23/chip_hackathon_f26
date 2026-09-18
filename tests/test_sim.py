@@ -1,4 +1,4 @@
-"""End-to-end simulator tests: validation gates 3-5 (AGENT_BRIEF §6)."""
+"""End-to-end simulator tests: validation gates 3-5."""
 import numpy as np
 import pytest
 
@@ -78,7 +78,7 @@ def test_inorder_mode_runs():
     assert 0.0 <= res.summary["m1_mean"] <= 1.0
 
 
-# ----------------------------------------------- Phase 1: spec / prefix
+# ------------------------------------------------------- spec / prefix
 
 from pimkv.allocator import make_allocator
 from pimkv.sim import SpecParams
@@ -142,7 +142,7 @@ def test_prefix_sharing_saves_memory_vs_contiguous():
     assert contig.summary["peak_live_blocks"] > paged.summary["peak_live_blocks"]
 
 
-# ----------------------------------------------- Phase 2: PimAware recovery
+# --------------------------------------------------- PimAware recovery
 
 def test_pim_aware_recovers_alignment_under_host_cacheline():
     """The contribution: with bt=16 (2 KB per-channel slice, 1/8 row-group)

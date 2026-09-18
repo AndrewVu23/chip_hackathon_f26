@@ -1,4 +1,4 @@
-"""KV block allocation policies (AGENT_BRIEF §5.2).
+"""KV block allocation policies.
 
 Sequence-level interface driven by the simulator:
 
@@ -233,7 +233,7 @@ class RandomAlloc(KVAllocator):
 
 
 class PimAware(KVAllocator):
-    """The contribution (AGENT_BRIEF §5.2): alignment-preserving placement.
+    """The contribution: alignment-preserving placement.
 
     The pool is carved into fixed *frames* of ``blocks_per_frame`` blocks,
     where one frame's linear extent is exactly one row index across every
@@ -251,8 +251,7 @@ class PimAware(KVAllocator):
         regions), so alignment survives reuse — a later sequence refills
         the frame from aligned offsets.
 
-    Opportunistic compaction (brief: optional, behind a flag) is not
-    implemented; ``cow_copies``/copied-bytes accounting exists so its cost
+    Opportunistic compaction is not implemented; ``cow_copies``/copied-bytes accounting exists so its cost
     could be measured. Derived block size lives in
     ``config.derive_block_tokens``.
     """
@@ -286,8 +285,8 @@ class PimAware(KVAllocator):
             raise ValueError(f"unknown plan {plan!r}")
         self.plan_mode = plan
         self.plans: dict[object, list[int]] = {}
-        # Opportunistic compaction (AGENT_BRIEF §5.2, "behind a flag;
-        # measure its cost in block-copy bytes"). When a frame's occupancy
+        # Opportunistic compaction, off by default; cost is reported in
+        # block-copy bytes. When a frame's occupancy
         # falls below this fraction, its surviving blocks are migrated into
         # fuller frames and the block tables rewritten, so the frame comes
         # back whole. 0.0 = disabled. Cost is counted in ``blocks_copied``.
@@ -588,7 +587,7 @@ def make_allocator(name: str, num_blocks: int, seed: int, *,
     """Factory. ``frame_blocks`` (pim-aware only) = blocks per alignment
     frame; the caller derives it from geometry (see run.py) and pads
     num_blocks to a multiple. ``pim_scratch``: "separate" (Phase B2 fix) or
-    "shared" (Phase 2 behaviour, kept for A/B comparison)."""
+    "shared" (pre-fix behaviour, kept for A/B comparison)."""
     if name == "paged":
         return PagedFirstFit(num_blocks, seed)
     if name == "random":

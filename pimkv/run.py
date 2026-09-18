@@ -1,13 +1,10 @@
-"""CLI entry point. Every reported number is reproducible with one command.
+"""Single simulation run.
 
-Phase 0 kill test (AGENT_BRIEF §7):
+    python -m pimkv.run --workload steady --allocator pim-aware \
+        --addrmap host-cacheline --block-tokens 16 --requests 1000 --seed 0
 
-    python -m pimkv.run --workload steady --allocator paged --dram hbm3-pim \
-        --addrmap host-centric --block-tokens 16 --requests 2000 --seed 0 \
-        --out results/steady_paged.csv
-
-Writes the per-decode-step CSV and a ``<out>.meta.json`` sidecar with the
-full configuration and summary; prints the summary to stdout.
+Prints the summary. With ``--out``, also writes the per-sample metric CSV and
+a ``<out>.meta.json`` sidecar holding the full configuration and summary.
 """
 from __future__ import annotations
 
@@ -84,7 +81,7 @@ def build_parser() -> argparse.ArgumentParser:
                    default="separate",
                    help="pim-aware: draw spec branch tails from a shared "
                         "scratch domain (Phase B2 fix) or from the "
-                        "sequence's own frame (Phase 2 behaviour)")
+                        "sequence's own frame (pre-fix behaviour)")
     p.add_argument("--pim-plan", choices=("bestfit", "greedy"),
                    default="bestfit",
                    help="pim-aware: plan the whole admission into the "
@@ -98,7 +95,7 @@ def build_parser() -> argparse.ArgumentParser:
                    default="oracle",
                    help="oracle = reserve final footprint, no preemption "
                         "(Phases 0-2); vllm = v0.2.7 scheduler: watermark "
-                        "admission + preempt-by-recompute (Phase D)")
+                        "admission + preempt-by-recompute")
     p.add_argument("--coalesce", choices=("window", "inorder"),
                    default="window",
                    help="PIM controller model: reorder within a window "

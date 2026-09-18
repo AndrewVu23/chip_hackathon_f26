@@ -8,8 +8,8 @@ A field may appear twice (split column bits).
 
 Schemes
 -------
-``host-centric``   ro:bg:ba:ch:co (MSB->LSB) — the conventional map named in
-                   AGENT_BRIEF §5.3. All column bits are low, so consecutive
+``host-centric``   ro:bg:ba:ch:co (MSB->LSB) — the conventional map. All
+                   column bits are low, so consecutive
                    addresses in one channel sweep an entire row of ONE bank
                    before touching the next bank: rows stay open but all-bank
                    parallelism collapses (M2 -> ~2/banks for a 64-burst

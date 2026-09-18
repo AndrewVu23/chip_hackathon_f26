@@ -15,7 +15,7 @@ pimmodel   : analytical PIM metrics M1..M4 (row-hit rate, bank parallelism,
              effective bandwidth, decode latency).
 sim        : continuous-batching event loop tying the above together.
 run        : CLI entry point (python -m pimkv.run).
-ramulator  : Phase 3 — Ramulator 2 trace emission / cross-validation (stub).
+ramulator  : Ramulator 2 trace emission / cross-validation.
 """
 
 __version__ = "0.1.0"

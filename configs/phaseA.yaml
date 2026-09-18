@@ -1,7 +1,7 @@
 # Phase A — credibility sweeps. Answers four reviewer objections with
 # compute only (no new modeling). All on hbm3-pim + realistic host map.
 #
-# A1 seed variance   : do the Phase 2 curves survive 3 seeds?
+# A1 seed variance   : do the headline curves survive 3 seeds?
 # A2 in-order        : does the 64-burst reorder-window assumption carry the
 #                      result, or does it hold with NO controller reordering?
 # A3 pool headroom   : is contiguous's admission-stall penalty an artifact of

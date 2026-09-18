@@ -1,7 +1,7 @@
 # Headline sweep (consumed by pimkv.sweep).
 #
-# Everything runs on the REALISTIC host map (host-cacheline): Phase 0 showed
-# the brief's host-centric map destroys bank parallelism regardless of
+# Everything runs on the REALISTIC host map (host-cacheline): the
+# host-centric map destroys bank parallelism regardless of
 # allocator (an address-map problem the allocator cannot fix), and the
 # pim-friendly slab map makes 16-token blocks intrinsically aligned. The
 # allocator question lives on channel-interleaved maps.

@@ -87,7 +87,7 @@ class PimTiming:
     (M3's timing factor). The published measurement this project builds on
     reports nRC 10-11x larger than nCCDAB for decode GEMV on an
     AttAcc-style PIM. Absolute values are indicative and are cross-checked
-    against Ramulator 2 in Phase 3.
+    against Ramulator 2.
     """
 
     tccd_ab_ns: float  # min interval between all-bank column (MAC) commands, row open
@@ -162,7 +162,7 @@ DEFAULT_TIMING = PimTiming(tccd_ab_ns=4.3, trc_ns=45.0)
 # 4096 KV bytes per token per layer.
 LLAMA_GQA_8KV = ModelShape(name="llama-gqa-8kv", kv_heads=8, head_dim=128)
 
-# KV-head-count sensitivity axis (Phase C follow-up): the per-channel block
+# KV-head-count sensitivity axis: the per-channel block
 # slice scales with kv_bytes_per_token, so fewer KV heads => smaller slice
 # => worse alignment at a fixed block size. MQA (1 KV head, e.g. Falcon /
 # PaLM-style) and classic MHA (32 KV heads, e.g. Llama-2-7B) bracket the
@@ -179,7 +179,7 @@ MODEL_PRESETS: dict[str, ModelShape] = {
 
 def shard_kv(geom: DramGeometry, shape: ModelShape, n_shards: int
              ) -> tuple[DramGeometry, ModelShape]:
-    """Model KV-head sharding across channels (Phase C robustness axis).
+    """Model KV-head sharding across channels.
 
     Published PIM-attention designs do not byte-interleave the KV cache over
     every channel; they assign KV heads to channel groups, so one all-bank
@@ -191,7 +191,7 @@ def shard_kv(geom: DramGeometry, shape: ModelShape, n_shards: int
     shard characterizes all of them.
 
     Returns the effective (geometry, shape) for one shard. n_shards=1 is the
-    fully-interleaved baseline used in Phases 0-2.
+    fully-interleaved baseline.
 
     Note the per-channel block slice is invariant under proportional
     sharding (both rowgroup_bytes and kv_bytes_per_token scale by

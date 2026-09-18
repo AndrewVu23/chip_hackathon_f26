@@ -84,7 +84,7 @@ def test_double_admit_rejected():
         a.admit(1, 1, 1)
 
 
-# --------------------------------------------------- Phase 1: fork/CoW/refs
+# --------------------------------------------------------- fork/CoW/refs
 
 def test_fork_shares_blocks_and_release_keeps_them():
     a = PagedFirstFit(16)
@@ -127,7 +127,7 @@ def test_spec_round_adopt_accounting():
     a.assert_conservation()
 
 
-# ---------------------------------------------------- Phase 2: PimAware
+# -------------------------------------------------------------- PimAware
 
 from pimkv.allocator import PimAware, make_allocator
 

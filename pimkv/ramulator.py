@@ -1,4 +1,4 @@
-"""Phase E — Ramulator 2 cross-validation of the analytical model.
+"""Ramulator 2 cross-validation of the analytical model.
 
     python -m pimkv.ramulator --workload steady --block-tokens 16 \
         --allocators paged,pim-aware,contiguous --samples 3 --out results/phaseE/
@@ -10,8 +10,7 @@ timing simulator. So this cross-validates the ROW-LOCALITY half of the
 model (M1 and the tRC-vs-tCCD timing factor in M3) against a cycle-level
 controller with its own FR-FCFS reordering, on the SAME per-burst address
 streams the analytical model scores. It cannot validate M2's lockstep
-all-bank semantics. Comparison is of direction and rough magnitude
-(AGENT_BRIEF §5.5): if Ramulator's cycle deltas between allocators disagree
+all-bank semantics. Comparison is of direction and rough magnitude: if Ramulator's cycle deltas between allocators disagree
 in SIGN with M3's, the analytical model is wrong.
 
 Mechanics

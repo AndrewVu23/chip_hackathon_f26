@@ -1,5 +1,4 @@
-"""Allocator CPU cost measurement (AGENT_BRIEF gap: "allocator CPU time was
-not measured"). Measurement only — imports pimkv, changes nothing in it.
+"""Allocator CPU cost measurement. Measurement only — imports pimkv, changes nothing in it.
 
     .venv/bin/python scripts/bench_alloc.py --out results/bench_alloc
 

@@ -1,4 +1,4 @@
-"""Analytical PIM execution model: metrics M1-M4 (AGENT_BRIEF §5.4).
+"""Analytical PIM execution model: metrics M1-M4.
 
 Execution model
 ---------------
@@ -20,7 +20,7 @@ Reordering is limited to a sliding window of ``window`` bursts per channel
 (the PIM controller's buffering). ``mode="inorder"`` (window of 1 command)
 is the pessimistic sensitivity case.
 
-Metrics (definitions fixed by AGENT_BRIEF — do not change)
+Metrics (frozen: the result CSVs carry these column names)
 ----------------------------------------------------------
 M1  row-hit rate      hits / commands, where a command is a hit iff its row
                       is already open. All-bank semantics: the channel has a

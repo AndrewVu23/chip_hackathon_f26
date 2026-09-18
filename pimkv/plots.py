@@ -1,4 +1,4 @@
-"""Figure generation (Phase 2/4 — AGENT_BRIEF §9).
+"""Figure generation from the sweep summary CSVs.
 
     python -m pimkv.plots headline  results/headline/summary.csv figures/headline.png
     python -m pimkv.plots bandwidth results/headline/summary.csv figures/bandwidth.png
@@ -54,7 +54,7 @@ def _style_axis(ax):
 
 def headline(summary_csv: Path, out_path: Path) -> None:
     """M1 (top) and M3 (bottom) vs block size; three allocators; steady
-    solid, spec dashed. The money shot."""
+    solid, spec dashed."""
     df = pd.read_csv(summary_csv)
     df = df[df.workload.isin(("steady", "spec"))]
     ideal = None
@@ -188,7 +188,7 @@ def heatmap(summary_csv: Path, out_path: Path) -> None:
 
 
 def m1_hist(csv_path: Path, out_path: Path) -> None:
-    """Histogram of per-decode-step M1 from one run CSV (Phase 0 check)."""
+    """Histogram of per-decode-step M1 from one run CSV (baseline check)."""
     df = pd.read_csv(csv_path)
     fig, ax = plt.subplots(figsize=(7, 4.5))
     _style_axis(ax)
@@ -246,7 +246,7 @@ def kvheads(summary_csv: Path, out_path: Path) -> None:
 
 
 def validation(ram_csv: Path, attacc_csv: Path, out_path: Path) -> None:
-    """Phase E/E2 cross-validation, stated as two plain questions.
+    """Cross-validation, stated as two plain questions.
 
     Left  — does the model get PLACEMENT right? our M1 against stock
             Ramulator 2's own measured row-hit fraction, same sampled decode
@@ -332,7 +332,7 @@ def validation(ram_csv: Path, attacc_csv: Path, out_path: Path) -> None:
 
 
 def pressure(d_csv: Path, specfix_csv: Path, out_path: Path) -> None:
-    """Phase D: M1 vs pool headroom under vLLM admission + preemption."""
+    """M1 vs pool headroom under vLLM admission + preemption."""
     d = pd.read_csv(d_csv); f = pd.read_csv(specfix_csv)
     fig, ax = plt.subplots(figsize=(8.5, 5))
     _style_axis(ax)

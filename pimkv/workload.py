@@ -1,4 +1,4 @@
-"""Deterministic request-stream generators (AGENT_BRIEF §5.1).
+"""Deterministic request-stream generators.
 
 Each request: arrival time (in decode-step units), prompt length, output
 length. Every generator takes a seed and is fully deterministic: same seed,
@@ -14,11 +14,10 @@ Profiles
 steady   Poisson arrivals; ShareGPT-like lognormal prompt/output lengths
          (median ~200 each, long tail).
 longctx  8k-32k prompts, short outputs.
-prefix   60-80% of requests share a common system prompt (Phase 1 —
-         exercises copy-on-write).
+prefix   60-80% of requests share a common system prompt; exercises
+         copy-on-write.
 spec     tree speculative decoding: fork W wide, D deep per step, accept a
-         decaying-length path, free the rest (Phase 1 — the adversarial
-         case).
+         decaying-length path, free the rest; the adversarial case.
 """
 from __future__ import annotations
 

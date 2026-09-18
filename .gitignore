@@ -21,3 +21,4 @@ results/**/*.trace
 results/**/*.yaml
 docs/PRESENTATION_SCRIPT.md
 !results/bench_alloc/extra_workloads.csv
+docs/DEMO_COMMANDS.md
